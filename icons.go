@@ -9,7 +9,7 @@ func icon(body string) *ui.SVG {
 
 var (
 	icHome     = icon(`<path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-4.5v-6h-5v6H5a1 1 0 0 1-1-1z"/>`)
-	icCompass  = icon(`<circle cx="12" cy="12" r="8.5"/><path d="m15.5 8.5-2 5-5 2 2-5z"/>`)
+	icArtist   = icon(`<path d="M12 3a9 9 0 1 0 0 18h1.2a2.3 2.3 0 0 0 1.6-3.9 1.3 1.3 0 0 1 .9-2.2H18a3 3 0 0 0 3-3c0-5-4-8.9-9-8.9z"/><circle cx="7.5" cy="10" r=".8"/><circle cx="11" cy="6.8" r=".8"/><circle cx="15.5" cy="7.5" r=".8"/><circle cx="7.5" cy="14.5" r=".8"/>`)
 	icMuseum   = icon(`<path d="m3 9 9-6 9 6M4 10h16M5 10v8M10 10v8M14 10v8M19 10v8M3 19h18M2 22h20"/>`)
 	icGlobe    = icon(`<circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18M5 6.5h14M5 17.5h14"/>`)
 	icClock    = icon(`<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>`)

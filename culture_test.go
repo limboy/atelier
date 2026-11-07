@@ -121,6 +121,7 @@ func TestCultureEmptySearchIsNotAnError(t *testing.T) {
 		kind   destinationKind
 		record []any
 	}{
+		{artists, []any{"stella.sp", "search", "no-such-place"}},
 		{places, []any{"stella.sr", "no-such-place"}},
 		{museums, []any{"stella.pr", "PartnersQuery:empty", nil, nil, 0}},
 	} {
@@ -263,7 +264,7 @@ func TestCultureLive(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	g := NewCulture(t.TempDir())
-	for _, kind := range []destinationKind{museums, places} {
+	for _, kind := range []destinationKind{artists, museums, places} {
 		q := cultureQuery{Kind: kind}
 		first, err := g.Directory(ctx, q, "")
 		if err != nil || len(first.Items) == 0 || first.Next == "" {
@@ -277,7 +278,11 @@ func TestCultureLive(t *testing.T) {
 		if err != nil || len(alpha.Items) == 0 {
 			t.Fatalf("%s A–Z: %#v, %v", kind, alpha, err)
 		}
-		search, err := g.Directory(ctx, cultureQuery{Kind: kind, Text: "Tokyo"}, "")
+		query := "Tokyo"
+		if kind == artists {
+			query = "Monet"
+		}
+		search, err := g.Directory(ctx, cultureQuery{Kind: kind, Text: query}, "")
 		if err != nil || len(search.Items) == 0 {
 			t.Fatalf("%s search: %#v, %v", kind, search, err)
 		}

@@ -1,9 +1,9 @@
 # Atelier
 
-A desktop app for exploring art, built with [mygo](https://github.com/egoist/mygo)'s native UI: no webview, drawn on the GPU from Go. It browses the public domain collection of [The Metropolitan Museum of Art](https://www.metmuseum.org/) through its [Open Access API](https://metmuseum.github.io/), and museums and places from [Google Arts & Culture](https://artsandculture.google.com/).
+A desktop app for exploring art, built with [mygo](https://github.com/egoist/mygo)'s native UI: no webview, drawn on the GPU from Go. It browses the public domain collection of [The Metropolitan Museum of Art](https://www.metmuseum.org/) through its [Open Access API](https://metmuseum.github.io/), and artists, museums and places from [Google Arts & Culture](https://artsandculture.google.com/).
 
 - **Home**: a featured carousel, an art of the day, and rows of themed stories (Impressionism, Van Gogh, ukiyo-e, Ancient Egypt, armor…) that scroll sideways.
-- **Explore**: artists, movements, mediums and the Met's departments, each opening its works in a grid that loads more as it scrolls.
+- **Artists**: the [Google Arts & Culture artist directory](https://artsandculture.google.com/category/artist), with featured artists, A–Z browsing and search. Native artist pages show dates, biographies, selected works and stories; artworks open in the shared viewer.
 - **Museums**: the [Google Arts & Culture partner directory](https://artsandculture.google.com/partner), with featured collections, A–Z browsing, search by museum or city, and pages of results. Native detail pages show descriptions, collection highlights, stories, websites, addresses and map links.
 - **Places**: [countries, cities and landmarks](https://artsandculture.google.com/category/place), with featured and A–Z browsing, place name suggestions, collection previews and related museums. Museums and artworks open inside Atelier; stories and virtual visits open on Google Arts & Culture in your browser.
 - **Time machine**: a slider and eras from 3000 BCE to 1950.
@@ -40,12 +40,12 @@ bun run build && ditto build/darwin-arm64/Atelier.app /Applications/Atelier.app
 - `culture.go`: the Google Arts & Culture directory and detail client, response parsing, pagination and separate disk cache.
 - `culture_artwork.go`: Google Arts & Culture artwork metadata, catalog fields, descriptions and source links.
 - `asset.go`: native Google Arts & Culture artwork pages, using the shared viewer in `artwork.go`.
-- `destinations.go`: the native museum and place directories, search, detail pages and home shortcuts.
+- `destinations.go`: the native artist, museum and place directories, search, detail pages and home shortcuts.
 - `state.go`: feeds of a search's artworks, loaded a page at a time, and favorites.
 - `images.go`: pictures downloaded, scaled and decoded off the main thread, newest first.
 - `cache.go`: what the cache holds, by kind, and clearing it.
 - `components.go`: the top bar, artwork cards, rows and the masonry grid.
-- `home.go`, `explore.go`, `collection.go` (collections, favorites, the time machine), `artwork.go` (the viewer and details), `settings.go` (storage): the pages.
+- `home.go`, `collection.go` (collections, favorites, the time machine), `artwork.go` (the viewer and details), `settings.go` (storage): the pages.
 - `resources/icon.png`: the app's icon, rendered from `design/icon.svg` with `rsvg-convert -w 1024 -h 1024 design/icon.svg -o resources/icon.png`.
 
 ## Data and the API
@@ -54,9 +54,9 @@ The API's firewall turns away bursts of requests with a 403. The app paces its r
 
 Responses are cached in `~/Library/Caches/Atelier/met`: pictures for good, artworks for a week and searches for a day. An expired copy is fetched again, and shown when that fails, offline or while the API turns the app away. The cache has no size limit yet; Settings shows and clears it.
 
-Museums and places use the public JSON requests made by the Google Arts & Culture website. These are unofficial endpoints and can change; unreadable responses produce a retry option and never replace a valid cached copy. Directories use the server's pagination cursors. Museum searches return paginated matches; place searches use Google's place suggestions. ⌘F focuses the directory's search field while browsing museums or places; elsewhere it focuses artwork search.
+Artists, museums and places use the public JSON requests made by the Google Arts & Culture website. These are unofficial endpoints and can change; unreadable responses produce a retry option and never replace a valid cached copy. Directories use the server's pagination cursors. Museum searches return paginated matches; artist searches filter Google's matching topics, and place searches use Google's place suggestions. ⌘F focuses the directory's search field while browsing artists, museums or places; elsewhere it focuses artwork search.
 
-Their responses and images are cached separately in `~/Library/Caches/Atelier/artsandculture`: directory results for a day, museum/place/artwork details and images for a week, with an older copy available if a refresh fails. Settings includes their storage and can clear it. The development app uses its own cache. The native artwork viewer uses the image renditions Google provides; its website's gigapixel tile viewer is not embedded.
+Their responses and images are cached separately in `~/Library/Caches/Atelier/artsandculture`: directory results for a day, artist/museum/place/artwork details and images for a week, with an older copy available if a refresh fails. Settings includes their storage and can clear it. The development app uses its own cache. The native artwork viewer uses the image renditions Google provides; its website's gigapixel tile viewer is not embedded.
 
 Favorites are saved in `~/Library/Application Support/Atelier/favorites.json`. The development app, from `bun run dev`, keeps its own in `Atelier Dev`.
 

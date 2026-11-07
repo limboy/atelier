@@ -29,7 +29,7 @@ func (a *app) topBar(c *ui.Context) {
 		}).Label("Atelier, home").OnClick(func() { a.router.Push("/home") })
 		ui.Box(c).Width(12)
 		a.navItem(c, "/home", icHome, "Home", path == "/home")
-		a.navItem(c, "/explore", icCompass, "Explore", path == "/explore")
+		a.navItem(c, "/artists", icArtist, "Artists", strings.HasPrefix(path, "/artists") || path == "/explore")
 		a.navItem(c, "/museums", icMuseum, "Museums", strings.HasPrefix(path, "/museums"))
 		a.navItem(c, "/places", icGlobe, "Places", strings.HasPrefix(path, "/places"))
 		a.navItem(c, "/time", icClock, "Time machine", path == "/time")
@@ -45,7 +45,7 @@ func (a *app) topBar(c *ui.Context) {
 				a.router.Push("/search?q=" + urlQuery(q))
 			}
 		}
-		if path != "/museums" && path != "/places" && c.Shortcut(ui.Cmd, ui.KeyF) {
+		if path != "/artists" && path != "/explore" && path != "/museums" && path != "/places" && c.Shortcut(ui.Cmd, ui.KeyF) {
 			f.Focus()
 		}
 		gear := ui.ButtonBase(c.Key("settings")).Size(34, 34).Radius(17).Cursor(ui.CursorPointer).

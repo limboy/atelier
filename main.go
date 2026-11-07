@@ -1,7 +1,7 @@
 // Atelier is a desktop app for exploring art, in native UI drawn by MyGo:
-// featured stories, artists, movements, mediums and eras, a time machine,
+// featured stories and eras, a time machine,
 // a zoomable viewer and favorites, over the public domain collection of
-// The Metropolitan Museum of Art, with museums and places from Google
+// The Metropolitan Museum of Art, with artists, museums and places from Google
 // Arts & Culture.
 //
 //	go run .
@@ -149,8 +149,8 @@ func (a *app) view(c *ui.Context) {
 		if path := a.router.Path(); path != a.lastPath {
 			// Destination details change in place, like the main sections.
 			a.router.Transition = ui.TransitionAuto
-			if path == "/museums/view" || path == "/places/view" ||
-				a.lastPath == "/museums/view" || a.lastPath == "/places/view" ||
+			if path == "/artists/view" || path == "/museums/view" || path == "/places/view" ||
+				a.lastPath == "/artists/view" || a.lastPath == "/museums/view" || a.lastPath == "/places/view" ||
 				strings.HasPrefix(path, "/asset/") || strings.HasPrefix(a.lastPath, "/asset/") {
 				a.router.Transition = ui.TransitionFade
 			}
@@ -165,15 +165,18 @@ func (a *app) view(c *ui.Context) {
 			case r.Match("/home"):
 				r.Title("Home")
 				a.home(c)
-			case r.Match("/explore"):
-				r.Title("Explore")
-				a.explore(c)
+			case r.Match("/artists") || r.Match("/explore"):
+				r.Title("Artists")
+				a.directory(c, artists)
 			case r.Match("/museums"):
 				r.Title("Museums")
 				a.directory(c, museums)
 			case r.Match("/places"):
 				r.Title("Places")
 				a.directory(c, places)
+			case r.Match("/artists/view"):
+				r.Title("Artist")
+				a.destinationPage(c, artists, r.Query("path"))
 			case r.Match("/museums/view"):
 				r.Title("Museum")
 				a.destinationPage(c, museums, r.Query("path"))

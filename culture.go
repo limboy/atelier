@@ -24,11 +24,22 @@ const cultureBase = "https://artsandculture.google.com"
 type destinationKind string
 
 const (
+	artists destinationKind = "artists"
 	museums destinationKind = "museums"
 	places  destinationKind = "places"
 )
 
-// cultureItem is a museum, a place, or a preview linking to its original
+func (kind destinationKind) categoryID() string {
+	switch kind {
+	case artists:
+		return "artist"
+	case places:
+		return "place"
+	}
+	return ""
+}
+
+// cultureItem is an artist, a museum, a place, or a preview linking to its original
 // artwork, story or virtual visit. Google IDs never enter the Met's feeds.
 type cultureItem struct {
 	Name, Subtitle, Image, Path     string
@@ -44,6 +55,8 @@ func (i cultureItem) route() string {
 	kind := places
 	if strings.HasPrefix(i.Path, "/partner/") {
 		kind = museums
+	} else if u, err := url.Parse(i.Path); err == nil && u.Query().Get("categoryId") == "artist" {
+		kind = artists
 	}
 	return "/" + string(kind) + "/view?" + url.Values{"path": {i.Path}}.Encode()
 }
@@ -211,10 +224,14 @@ func validCultureRecord(r []any, tag string) bool {
 		_, items := at(r, 2).([]any)
 		// With no suggestions, Google omits the trailing items field.
 		return query && (items || at(r, 2) == nil)
+	case "stella.sp":
+		_, query := at(r, 2).(string)
+		_, topics := at(r, 8).([]any)
+		return query && (topics || at(r, 8) == nil)
 	case "stella.pp2":
 		return textAt(arrayAt(r, 2), 1) != ""
 	case "stella.ep":
-		return textAt(r, 3) == "place" && textAt(r, 4) != ""
+		return (textAt(r, 3) == "place" || textAt(r, 3) == "artist") && textAt(r, 4) != ""
 	case "stella.ap":
 		v := arrayAt(r, 2)
 		return textAt(v, 0) == "stella.av" && validCultureAssetID(textAt(v, 1)) && textAt(v, 2) != ""
@@ -298,6 +315,13 @@ func cultureObject(a []any) (cultureItem, bool) {
 	if err != nil || u.IsAbs() || u.Host != "" || !strings.HasPrefix(u.Path, "/") {
 		return cultureItem{}, false
 	}
+	// Search results omit the category, which native routes need to
+	// distinguish artists (including fashion designers) from places.
+	if strings.HasPrefix(u.Path, "/entity/") && (numberAt(a, 5) == 3 || numberAt(a, 5) == 24) {
+		q := u.Query()
+		q.Set("categoryId", "artist")
+		u.RawQuery = q.Encode()
+	}
 	item := cultureItem{Name: plainCultureText(textAt(a, 1)), Subtitle: plainCultureText(textAt(a, 2)), Image: cultureImage(textAt(a, 3), 900), Path: u.String()}
 	if item.Name == "" {
 		return cultureItem{}, false
@@ -348,18 +372,22 @@ func (g *Culture) Directory(ctx context.Context, q cultureQuery, cursor string) 
 	p := url.Values{"pt": {cursor}, "s": {"36"}}
 	path := "/api/objects/partner"
 	tag := "stella.pr"
-	if q.Kind == places {
+	if q.Kind == places || q.Kind == artists {
 		path = "/api/objects/category"
-		p.Set("categoryId", "place")
+		p.Set("categoryId", q.Kind.categoryID())
 		p.Set("tab", "pop")
 		if q.Prefix != "" {
 			p.Set("tab", "az")
 		}
 		if q.Text != "" {
-			// Google's suggestions identify places by type 6. This also
-			// finds cities absent from the first A–Z page, such as Tokyo.
 			path, tag = "/api/suggest", "stella.sr"
 			p = url.Values{"q": {q.Text}}
+			if q.Kind == artists {
+				// Full search finds surnames, such as Monet, which the
+				// autocomplete suggestions may omit. Only matched topics
+				// belong here; the response also includes related artists.
+				path, tag = "/api/search", "stella.sp"
+			}
 		}
 	} else if q.Kind != museums {
 		return nil, errors.New("unknown directory")
@@ -374,14 +402,22 @@ func (g *Culture) Directory(ctx context.Context, q cultureQuery, cursor string) 
 	if err != nil {
 		return nil, err
 	}
-	items := cultureObjects(at(r, 2), func(a []any, item cultureItem) bool {
+	objects := at(r, 2)
+	if tag == "stella.sp" {
+		objects = at(r, 8)
+	}
+	items := cultureObjects(objects, func(a []any, item cultureItem) bool {
 		if q.Kind == museums {
 			return numberAt(a, 5) == 4 && strings.HasPrefix(item.Path, "/partner/")
+		}
+		if q.Kind == artists {
+			return strings.HasPrefix(item.Path, "/entity/") &&
+				(tag != "stella.sp" || numberAt(a, 5) == 3 || numberAt(a, 5) == 24)
 		}
 		return numberAt(a, 5) == 6 && strings.HasPrefix(item.Path, "/entity/")
 	})
 	page := &culturePage{Items: items, Total: numberAt(r, 4), Next: textAt(r, 8)}
-	if tag == "stella.sr" {
+	if tag == "stella.sr" || tag == "stella.sp" {
 		page.Total, page.Next = len(items), ""
 	}
 	return page, nil
@@ -415,22 +451,28 @@ func (g *Culture) Destination(ctx context.Context, kind destinationKind, path st
 		d.Visits = cultureObjects(at(info, 8), func(_ []any, i cultureItem) bool { return strings.HasPrefix(i.Path, "/streetview/") })
 		return d, nil
 	}
-	if kind != places || len(parts) < 2 || parts[0] != "entity" {
+	category := kind.categoryID()
+	if category == "" || (len(parts) != 2 && len(parts) != 3) || parts[0] != "entity" {
 		return nil, errors.New("invalid destination")
 	}
 	entityID := parts[len(parts)-1]
-	if len(entityID) < 2 || (entityID[0] != 'm' && entityID[0] != 'g') {
-		return nil, errors.New("invalid place ID")
+	if len(entityID) < 2 || !validCultureAssetID(entityID) || !strings.ContainsRune("mgt", rune(entityID[0])) {
+		return nil, errors.New("invalid entity ID")
 	}
 	entityID = "/" + entityID[:1] + "/" + entityID[1:]
-	r, err := g.request(ctx, "/api/entity", url.Values{"entityId": {entityID}, "categoryId": {"place"}}, "stella.ep", 7*24*time.Hour, nil)
+	r, err := g.request(ctx, "/api/entity", url.Values{"entityId": {entityID}, "categoryId": {category}}, "stella.ep", 7*24*time.Hour, func(r []any) error {
+		if textAt(r, 3) != category || textAt(r, 2) != entityID {
+			return errors.New("Google Arts & Culture returned a different entity")
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
-	if textAt(r, 3) != "place" || textAt(r, 4) == "" {
-		return nil, errors.New("place details are unavailable")
-	}
 	d.Name, d.Image = textAt(r, 4), cultureImage(textAt(r, 5), 1600)
+	if kind == artists {
+		d.Subtitle = plainCultureText(textAt(r, 6))
+	}
 	d.Description = plainCultureText(textAt(arrayAt(r, 7), 1))
 	d.SourceName, d.SourceURL = textAt(arrayAt(r, 8), 0), cultureURL(textAt(arrayAt(r, 8), 1))
 	d.Total = numberAt(arrayAt(r, 9), 4)

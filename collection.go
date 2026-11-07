@@ -69,7 +69,7 @@ func (a *app) favoritesPage(c *ui.Context) {
 					ui.Icon(c, icHeart).Size(40, 40).TextColor(inkFaint)
 					ui.Text(c, "Tap the heart on an artwork to keep it here.").TextColor(inkSoft)
 					if ui.PrimaryButton(c, "Start exploring").Clicked() {
-						a.router.Push("/explore")
+						a.router.Push("/artists")
 					}
 				})
 				return

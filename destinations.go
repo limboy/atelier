@@ -74,7 +74,9 @@ func (a *app) directory(c *ui.Context, kind destinationKind) {
 		a.directories[kind] = s
 	}
 	title, sub, placeholder := "Museums", "Visit museums, galleries and cultural collections around the world.", "Search museums or cities…"
-	if kind == places {
+	if kind == artists {
+		title, sub, placeholder = "Artists", "Discover artists and their work from collections around the world.", "Search artists by name…"
+	} else if kind == places {
 		title, sub, placeholder = "Places", "Explore the art and culture of countries, cities and landmarks.", "Search cities, countries or landmarks…"
 	}
 	ui.Column(c).Fill().AlignItems(ui.Stretch).Children(func() {
@@ -136,7 +138,9 @@ func (a *app) directory(c *ui.Context, kind destinationKind) {
 					return
 				}
 				label := plural(f.total, "place", "places")
-				if kind == museums {
+				if kind == artists {
+					label = plural(f.total, "artist", "artists")
+				} else if kind == museums {
 					label = plural(f.total, "museum and cultural partner", "museums and cultural partners")
 				}
 				if q.Text != "" {
@@ -177,8 +181,8 @@ func (a *app) directory(c *ui.Context, kind destinationKind) {
 					ui.Text(c, "From Google Arts & Culture").FontSize(12).TextColor(inkFaint)
 					ui.Spacer(c)
 					link := cultureBase + "/partner"
-					if kind == places {
-						link = cultureBase + "/category/place"
+					if category := kind.categoryID(); category != "" {
+						link = cultureBase + "/category/" + category
 					}
 					externalButton(c, "Open directory in browser", link)
 				})
@@ -241,6 +245,9 @@ func (a *app) destinationCard(c *ui.Context, item cultureItem, w float32, native
 					ic := icMuseum
 					if strings.HasPrefix(item.Path, "/entity/") {
 						ic = icGlobe
+						if strings.HasPrefix(item.route(), "/artists/") {
+							ic = icArtist
+						}
 					}
 					ui.Icon(c, ic).Size(40, 40).TextColor(inkFaint)
 				})
@@ -301,7 +308,9 @@ func (a *app) destinationPage(c *ui.Context, kind destinationKind, path string) 
 				})
 				ui.Column(c).Grow(1).Gap(14).Children(func() {
 					label := "Museum & collection"
-					if kind == places {
+					if kind == artists {
+						label = "Artist"
+					} else if kind == places {
 						label = "Place"
 					}
 					ui.Text(c, label).FontSize(12).TextColor(accent)
@@ -354,8 +363,12 @@ func (a *app) destinationPage(c *ui.Context, kind destinationKind, path string) 
 				})
 			}
 			w, _ := c.Size()
-			a.destinationSection(c.Key("works"), "Collection highlights", d.Works, w-80, false)
-			a.destinationSection(c.Key("museums"), "Museums & collections in "+d.Name, d.Museums, w-80, true)
+			worksTitle, museumsTitle := "Collection highlights", "Museums & collections in "+d.Name
+			if kind == artists {
+				worksTitle, museumsTitle = "Selected works", "Museums & collections"
+			}
+			a.destinationSection(c.Key("works"), worksTitle, d.Works, w-80, false)
+			a.destinationSection(c.Key("museums"), museumsTitle, d.Museums, w-80, true)
 			a.destinationSection(c.Key("stories"), "Stories", d.Stories, w-80, false)
 			if len(d.Visits) > 0 {
 				ui.Column(c).Gap(14).Children(func() {

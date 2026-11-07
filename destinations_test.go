@@ -16,7 +16,7 @@ func TestNavigationFitsMinimumWindowWidth(t *testing.T) {
 			ui.Column(c).Fill().Children(func() { a.topBar(c) })
 		}, width, 100)
 		view.SetTitleBar(ui.TitleBar{Height: 56, Left: 80})
-		for _, label := range []string{"Home", "Explore", "Museums", "Places", "Time machine", "Favorites", "Settings", "Search artworks or open a link"} {
+		for _, label := range []string{"Home", "Artists", "Museums", "Places", "Time machine", "Favorites", "Settings", "Search artworks or open a link"} {
 			r, ok := view.Find(label)
 			if !ok || r.X < 0 || r.X+r.W > float32(width) || r.W == 0 {
 				t.Errorf("%s at width %d: bounds=%+v, found=%v", label, width, r, ok)
@@ -91,17 +91,19 @@ func TestDestinationNavigationAndSourceLinks(t *testing.T) {
 
 func TestDestinationBackReturnsToIndex(t *testing.T) {
 	for _, tc := range []struct {
-		kind destinationKind
-		item cultureItem
+		kind  destinationKind
+		item  cultureItem
+		query string
 	}{
-		{museums, cultureItem{Name: "Tokyo Museum", Path: "/partner/tokyo-museum"}},
-		{places, cultureItem{Name: "Tokyo", Path: "/entity/tokyo/m07dfk"}},
+		{artists, cultureItem{Name: "Claude Monet", Path: "/entity/claude-monet/m01xnj?categoryId=artist"}, "Monet"},
+		{museums, cultureItem{Name: "Tokyo Museum", Path: "/partner/tokyo-museum"}, "Tokyo"},
+		{places, cultureItem{Name: "Tokyo", Path: "/entity/tokyo/m07dfk"}, "Tokyo"},
 	} {
 		t.Run(string(tc.kind), func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			f := &cultureFeed{q: cultureQuery{Kind: tc.kind, Text: "Tokyo"}, items: []cultureItem{tc.item}, total: 1, done: true, ctx: ctx, cancel: cancel}
-			s := &directoryState{query: "Tokyo", feed: f}
+			f := &cultureFeed{q: cultureQuery{Kind: tc.kind, Text: tc.query}, items: []cultureItem{tc.item}, total: 1, done: true, ctx: ctx, cancel: cancel}
+			s := &directoryState{query: tc.query, feed: f}
 			index := "/" + string(tc.kind)
 			a := &app{
 				router:       ui.NewRouter(index),
@@ -124,7 +126,7 @@ func TestDestinationBackReturnsToIndex(t *testing.T) {
 			if a.router.Path() != index || a.router.CanGoBack() || !a.router.CanGoForward() {
 				t.Fatal("Back did not return to the index")
 			}
-			if s.query != "Tokyo" || s.feed != f || !view.HasText("matching “Tokyo”") {
+			if s.query != tc.query || s.feed != f || !view.HasText("matching “"+tc.query+"”") {
 				t.Fatal("Back lost the index search or loaded results")
 			}
 			if err := view.Click("Forward"); err != nil {
@@ -135,5 +137,60 @@ func TestDestinationBackReturnsToIndex(t *testing.T) {
 				t.Fatal("Forward did not reopen the detail")
 			}
 		})
+	}
+}
+
+func TestArtistsReplaceExploreAndOpenArtworksNatively(t *testing.T) {
+	artist := cultureItem{Name: "Claude Monet", Path: "/entity/claude-monet/m01xnj?categoryId=artist"}
+	work := cultureItem{Name: "Water Lilies", Path: "/asset/water-lilies/example-painting"}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	a := &app{
+		router: ui.NewRouter("/museums"),
+		img:    &images{m: map[picKey]*picture{}},
+		directories: map[destinationKind]*directoryState{
+			museums: {feed: &cultureFeed{q: cultureQuery{Kind: museums}, done: true, ctx: ctx, cancel: cancel}},
+			artists: {feed: &cultureFeed{q: cultureQuery{Kind: artists}, items: []cultureItem{artist}, total: 1, done: true, ctx: ctx, cancel: cancel}},
+		},
+		destinations: map[string]*destinationState{
+			artist.Path: {detail: &destination{cultureItem: cultureItem{Name: artist.Name, Path: artist.Path, Subtitle: "1840–1926"}, Description: "French impressionist painter.", Works: []cultureItem{work}}},
+		},
+		assets: map[string]*assetState{"example-painting": {art: &cultureArtwork{ID: "example-painting", Title: work.Name, Path: work.Path}}},
+	}
+	view := ui.NewTester(a.view, 1280, 840)
+	if _, ok := view.Find("Explore"); ok {
+		t.Fatal("Explore is still in the navigation")
+	}
+	if err := view.Click("Artists"); err != nil {
+		t.Fatal(err)
+	}
+	view.Advance(time.Second)
+	if a.router.Path() != "/artists" || !view.HasText("1 artist") {
+		t.Fatal("Artists did not open the Google Arts & Culture directory")
+	}
+	if err := view.Click(artist.Name); err != nil {
+		t.Fatal(err)
+	}
+	view.Advance(20 * time.Millisecond)
+	if r, ok := view.Find("Artist"); !ok || r.X < 0 || r.X+r.W > 1280 {
+		t.Fatalf("artist details moved outside the content area: %+v, found=%v", r, ok)
+	}
+	view.Advance(time.Second)
+	if a.router.Path() != "/artists/view" || !view.HasText("Selected works") || !view.HasText("1840–1926") {
+		t.Fatal("artist details did not open natively with dates and works")
+	}
+	if err := view.Click(work.Name); err != nil {
+		t.Fatal(err)
+	}
+	view.Advance(time.Second)
+	if a.router.Path() != "/asset/example-painting" || len(view.OpenedURLs()) != 0 {
+		t.Fatal("artist artwork did not open in the shared viewer")
+	}
+	if err := view.Click("Back"); err != nil {
+		t.Fatal(err)
+	}
+	view.Advance(time.Second)
+	if a.router.Path() != "/artists/view" || !view.HasText(artist.Name) {
+		t.Fatal("Back did not return to the artist")
 	}
 }
