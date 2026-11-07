@@ -49,6 +49,35 @@ type app struct {
 
 	// immersive shows an artwork alone, the window full screen.
 	immersive bool
+
+	settings settingsState
+	lastPath string // the page the last frame showed
+}
+
+// menu is the menu bar: macOS's own, with Settings… in the app's menu.
+func (a *app) menu() *mygo.Menu {
+	return mygo.NewMenu([]*mygo.MenuItem{
+		{Label: "Atelier", Submenu: []*mygo.MenuItem{
+			{Role: mygo.RoleAbout},
+			mygo.Separator(),
+			{Label: "Settings…", Accelerator: "CmdOrCtrl+,", Click: func(*mygo.MenuItem, *mygo.Window) {
+				a.update(func() { a.router.Push("/settings") })
+			}},
+			mygo.Separator(),
+			{Role: mygo.RoleServices},
+			mygo.Separator(),
+			{Role: mygo.RoleHide},
+			{Role: mygo.RoleHideOthers},
+			{Role: mygo.RoleUnhide},
+			mygo.Separator(),
+			{Role: mygo.RoleQuit},
+		}},
+		{Role: mygo.RoleEditMenu},
+		{Label: "View", Submenu: []*mygo.MenuItem{
+			{Role: mygo.RoleToggleFullScreen},
+		}},
+		{Role: mygo.RoleWindowMenu},
+	})
 }
 
 // setImmersive shows the artwork alone, the window full screen, or ends it.
@@ -112,6 +141,13 @@ func (a *app) view(c *ui.Context) {
 		if !a.immersive {
 			a.topBar(c)
 		}
+		// The settings page scans the cache each time it opens.
+		if path := a.router.Path(); path != a.lastPath {
+			if path == "/settings" {
+				a.scanCache()
+			}
+			a.lastPath = path
+		}
 		a.router.View(c, func(r *ui.Route) {
 			switch {
 			case r.Match("/home"):
@@ -123,6 +159,9 @@ func (a *app) view(c *ui.Context) {
 			case r.Match("/time"):
 				r.Title("Time machine")
 				a.timeMachine(c)
+			case r.Match("/settings"):
+				r.Title("Settings")
+				a.settingsPage(c)
 			case r.Match("/favorites"):
 				r.Title("Favorites")
 				a.favoritesPage(c)
@@ -222,6 +261,7 @@ func main() {
 			TrafficLightPosition: &mygo.Point{X: 20, Y: (topBarHeight - 14) / 2},
 			Content:              ui.View(a.view),
 		})
+		mygo.App.SetMenu(a.menu())
 		// Leaving full screen otherwise (the green button, Esc, a
 		// gesture) ends the immersive view too.
 		a.win.OnLeaveFullScreen(func() {

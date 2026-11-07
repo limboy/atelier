@@ -314,7 +314,7 @@ func (m *Met) Artwork(ctx context.Context, id int) (*Artwork, error) {
 	if gone {
 		return nil, errNotFound
 	}
-	b, err := m.get(ctx, fmt.Sprintf("%s/objects/%d", metBase, id), 7*24*time.Hour)
+	b, err := m.get(ctx, fmtObjectURL(id), 7*24*time.Hour)
 	if err != nil {
 		if errors.Is(err, errNotFound) {
 			m.mu.Lock()
@@ -332,6 +332,9 @@ func (m *Met) Artwork(ctx context.Context, id int) (*Artwork, error) {
 	m.mu.Unlock()
 	return a, nil
 }
+
+// fmtObjectURL is the API's URL of an artwork.
+func fmtObjectURL(id int) string { return fmt.Sprintf("%s/objects/%d", metBase, id) }
 
 // Artworks fetches objects in parallel, keeping their order and only those
 // with a picture.

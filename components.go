@@ -40,6 +40,20 @@ func (a *app) topBar(c *ui.Context) {
 		if c.Shortcut(ui.Cmd, ui.KeyF) {
 			f.Focus()
 		}
+		gear := ui.ButtonBase(c.Key("settings")).Size(34, 34).Radius(17).Cursor(ui.CursorPointer).
+			Label("Settings").Tooltip("Settings").Selected(path == "/settings")
+		switch {
+		case path == "/settings":
+			gear.Background(ink).TextColor(paper)
+		case gear.Hovered():
+			gear.Background(wash).TextColor(ink)
+		default:
+			gear.TextColor(inkSoft)
+		}
+		gear.Children(func() { ui.Icon(c, icGear).Size(17, 17) })
+		if gear.Clicked() && path != "/settings" {
+			a.router.Push("/settings")
+		}
 	})
 }
 
