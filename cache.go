@@ -18,6 +18,7 @@ const (
 	kindPicture cacheKind = iota
 	kindArtwork
 	kindSearch
+	kindCulture
 )
 
 // cacheStats counts the files of one kind and their bytes.
@@ -41,13 +42,14 @@ type cachedArtwork struct {
 type cacheReport struct {
 	Dir                          string
 	Pictures, Artworks, Searches cacheStats
+	Culture                      cacheStats
 	Items                        []cachedArtwork // most recently saved first
 }
 
 func (r *cacheReport) Total() cacheStats {
 	return cacheStats{
-		Files: r.Pictures.Files + r.Artworks.Files + r.Searches.Files,
-		Bytes: r.Pictures.Bytes + r.Artworks.Bytes + r.Searches.Bytes,
+		Files: r.Pictures.Files + r.Artworks.Files + r.Searches.Files + r.Culture.Files,
+		Bytes: r.Pictures.Bytes + r.Artworks.Bytes + r.Searches.Bytes + r.Culture.Bytes,
 	}
 }
 

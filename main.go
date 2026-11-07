@@ -1,7 +1,8 @@
 // Atelier is a desktop app for exploring art, in native UI drawn by MyGo:
 // featured stories, artists, movements, mediums and eras, a time machine,
 // a zoomable viewer and favorites, over the public domain collection of
-// The Metropolitan Museum of Art.
+// The Metropolitan Museum of Art, with museums and places from Google
+// Arts & Culture.
 //
 //	go run .
 package main
@@ -21,16 +22,19 @@ import (
 
 // app is the state the window shows, read and written on the main thread.
 type app struct {
-	win    *mygo.Window
-	met    *Met
-	img    *images
-	router *ui.Router
+	win     *mygo.Window
+	met     *Met
+	culture *Culture
+	img     *images
+	router  *ui.Router
 
-	feeds   map[string]*feed
-	arts    map[int]*artState
-	viewers map[int]*viewer
-	favs    *favorites
-	layouts map[string]*masonryState
+	feeds        map[string]*feed
+	arts         map[int]*artState
+	viewers      map[int]*viewer
+	favs         *favorites
+	layouts      map[string]*masonryState
+	directories  map[destinationKind]*directoryState
+	destinations map[string]*destinationState
 
 	query string // the search field
 
@@ -141,8 +145,14 @@ func (a *app) view(c *ui.Context) {
 		if !a.immersive {
 			a.topBar(c)
 		}
-		// The settings page scans the cache each time it opens.
 		if path := a.router.Path(); path != a.lastPath {
+			// Destination details change in place, like the main sections.
+			a.router.Transition = ui.TransitionAuto
+			if path == "/museums/view" || path == "/places/view" ||
+				a.lastPath == "/museums/view" || a.lastPath == "/places/view" {
+				a.router.Transition = ui.TransitionFade
+			}
+			// The settings page scans the cache each time it opens.
 			if path == "/settings" {
 				a.scanCache()
 			}
@@ -156,6 +166,18 @@ func (a *app) view(c *ui.Context) {
 			case r.Match("/explore"):
 				r.Title("Explore")
 				a.explore(c)
+			case r.Match("/museums"):
+				r.Title("Museums")
+				a.directory(c, museums)
+			case r.Match("/places"):
+				r.Title("Places")
+				a.directory(c, places)
+			case r.Match("/museums/view"):
+				r.Title("Museum")
+				a.destinationPage(c, museums, r.Query("path"))
+			case r.Match("/places/view"):
+				r.Title("Place")
+				a.destinationPage(c, places, r.Query("path"))
 			case r.Match("/time"):
 				r.Title("Time machine")
 				a.timeMachine(c)
@@ -236,16 +258,19 @@ func main() {
 		dataDir = cacheDir
 	}
 	a := &app{
-		met:        NewMet(cacheDir),
-		router:     ui.NewRouter("/home"),
-		feeds:      map[string]*feed{},
-		arts:       map[int]*artState{},
-		viewers:    map[int]*viewer{},
-		layouts:    map[string]*masonryState{},
-		favs:       loadFavorites(dataDir),
-		heroSince:  time.Now(),
-		timeSlider: 1870,
-		timeYear:   1870,
+		met:          NewMet(cacheDir),
+		culture:      NewCulture(cacheDir),
+		router:       ui.NewRouter("/home"),
+		feeds:        map[string]*feed{},
+		arts:         map[int]*artState{},
+		viewers:      map[int]*viewer{},
+		layouts:      map[string]*masonryState{},
+		directories:  map[destinationKind]*directoryState{},
+		destinations: map[string]*destinationState{},
+		favs:         loadFavorites(dataDir),
+		heroSince:    time.Now(),
+		timeSlider:   1870,
+		timeYear:     1870,
 	}
 	a.img = newImages(a)
 	mygo.App.WhenReady(func() {

@@ -17,6 +17,7 @@ const topBarHeight = 56
 func (a *app) topBar(c *ui.Context) {
 	bar := c.TitleBar()
 	path := a.router.Path()
+	w, _ := c.Size()
 	ui.Row(c).Height(max(bar.Height, topBarHeight)).Shrink(0).Padding(0, bar.Right+16, 0, bar.Left+14).
 		Gap(6).Background(paper).BorderWidth(0, 0, 1, 0).BorderColor(line).
 		DragWindow().Children(func() {
@@ -29,15 +30,17 @@ func (a *app) topBar(c *ui.Context) {
 		ui.Box(c).Width(12)
 		a.navItem(c, "/home", icHome, "Home", path == "/home")
 		a.navItem(c, "/explore", icCompass, "Explore", path == "/explore")
+		a.navItem(c, "/museums", icMuseum, "Museums", strings.HasPrefix(path, "/museums"))
+		a.navItem(c, "/places", icGlobe, "Places", strings.HasPrefix(path, "/places"))
 		a.navItem(c, "/time", icClock, "Time machine", path == "/time")
 		a.navItem(c, "/favorites", icHeart, "Favorites", path == "/favorites")
 		ui.Spacer(c)
-		f := ui.SearchField(c.Key("search"), &a.query).Placeholder("Search artists, works, places…").
-			Label("Search the collection").Width(280).Radius(18)
+		f := ui.SearchField(c.Key("search"), &a.query).Placeholder("Search artworks…").
+			Label("Search the Met collection").Width(max(160, min(220, w-1080))).Radius(18)
 		if f.Submitted() && strings.TrimSpace(a.query) != "" {
 			a.router.Push("/search?q=" + urlQuery(strings.TrimSpace(a.query)))
 		}
-		if c.Shortcut(ui.Cmd, ui.KeyF) {
+		if path != "/museums" && path != "/places" && c.Shortcut(ui.Cmd, ui.KeyF) {
 			f.Focus()
 		}
 		gear := ui.ButtonBase(c.Key("settings")).Size(34, 34).Radius(17).Cursor(ui.CursorPointer).
@@ -58,7 +61,8 @@ func (a *app) topBar(c *ui.Context) {
 }
 
 func (a *app) navItem(c *ui.Context, path string, ic *ui.SVG, label string, on bool) {
-	b := ui.ButtonBase(c.Key(path)).Gap(6).Padding(7, 12).Radius(18).Cursor(ui.CursorPointer)
+	w, _ := c.Size()
+	b := ui.ButtonBase(c.Key(path)).Gap(6).Padding(7, 10).Radius(18).Cursor(ui.CursorPointer).Label(label).Tooltip(label)
 	color := inkSoft
 	switch {
 	case on:
@@ -71,7 +75,9 @@ func (a *app) navItem(c *ui.Context, path string, ic *ui.SVG, label string, on b
 	b.TextColor(color).Selected(on).Transition(ui.ElementTransition{Colors: true})
 	b.Children(func() {
 		ui.Icon(c, ic).Size(16, 16)
-		ui.Text(c, label).FontWeight(500)
+		if w >= 1220 {
+			ui.Text(c, label).FontWeight(500)
+		}
 	})
 	if b.Clicked() && !on {
 		a.router.Push(path)

@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"golang.org/x/image/draw"
+	_ "golang.org/x/image/webp"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -113,7 +114,13 @@ func (s *images) get(u string, maxDim int) *picture {
 }
 
 func (s *images) load(u string, maxDim int) (*ui.Bitmap, int, int, ui.Color, error) {
-	data, err := s.app.met.Image(context.Background(), u)
+	var data []byte
+	var err error
+	if cultureImage(u, 1) != "" && s.app.culture != nil {
+		data, err = s.app.culture.Image(context.Background(), u)
+	} else {
+		data, err = s.app.met.Image(context.Background(), u)
+	}
 	if err != nil {
 		return nil, 0, 0, ui.Color{}, err
 	}

@@ -1,8 +1,10 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -37,6 +39,7 @@ func (a *app) scanCache() {
 	s.scanning = true
 	go func() {
 		r := a.met.Scan()
+		r.Culture = a.culture.Scan()
 		a.update(func() { s.report, s.scanning = r, false })
 	}()
 }
@@ -48,6 +51,11 @@ func (a *app) clearCache(kinds ...cacheKind) {
 	s.clearing, s.err = true, ""
 	go func() {
 		err := a.met.Clear(kinds...)
+		for _, k := range kinds {
+			if k == kindCulture {
+				err = errors.Join(err, a.culture.Clear())
+			}
+		}
 		a.update(func() {
 			s.clearing = false
 			if err != nil {
@@ -57,6 +65,19 @@ func (a *app) clearCache(kinds ...cacheKind) {
 				switch k {
 				case kindPicture:
 					a.img.m = map[picKey]*picture{}
+				case kindCulture:
+					for _, s := range a.directories {
+						if s.feed != nil {
+							s.feed.cancel()
+						}
+					}
+					a.directories = map[destinationKind]*directoryState{}
+					a.destinations = map[string]*destinationState{}
+					for k := range a.img.m {
+						if cultureImage(k.url, 1) != "" {
+							delete(a.img.m, k)
+						}
+					}
 				case kindArtwork, kindSearch:
 					for _, f := range a.feeds {
 						f.cancel()
@@ -107,6 +128,7 @@ var (
 	tonePictures = accent
 	toneArtworks = ui.Hex("#5f7a5a")
 	toneSearches = ui.Hex("#d9a547")
+	toneCulture  = ui.Hex("#55788b")
 )
 
 func (a *app) settingsPage(c *ui.Context) {
@@ -149,7 +171,7 @@ func (a *app) storageSummary(c *ui.Context) {
 			for i, part := range []struct {
 				n    int64
 				tone ui.Color
-			}{{r.Pictures.Bytes, tonePictures}, {r.Artworks.Bytes, toneArtworks}, {r.Searches.Bytes, toneSearches}} {
+			}{{r.Pictures.Bytes, tonePictures}, {r.Artworks.Bytes, toneArtworks}, {r.Searches.Bytes, toneSearches}, {r.Culture.Bytes, toneCulture}} {
 				if total.Bytes == 0 || part.n == 0 {
 					continue
 				}
@@ -164,6 +186,8 @@ func (a *app) storageSummary(c *ui.Context) {
 			a.storageRow(c, "Artwork details", "Titles, artists and dates. Refreshed after a week.", toneArtworks, r.Artworks, kindArtwork)
 			ui.Divider(c)
 			a.storageRow(c, "Search results", "The lists on each page. Refreshed after a day.", toneSearches, r.Searches, kindSearch)
+			ui.Divider(c)
+			a.storageRow(c, "Museums & places", "Directories, details and preview images from Google Arts & Culture.", toneCulture, r.Culture, kindCulture)
 		})
 	})
 	ui.Row(c).Gap(8).Wrap().Children(func() {
@@ -175,8 +199,10 @@ func (a *app) storageSummary(c *ui.Context) {
 			})
 		})
 		if b.Clicked() {
-			_ = os.MkdirAll(r.Dir, 0o755)
-			mygo.Shell.OpenPath(r.Dir)
+			// Both the Met and Google Arts & Culture have subfolders here.
+			dir := filepath.Dir(r.Dir)
+			_ = os.MkdirAll(dir, 0o755)
+			mygo.Shell.OpenPath(dir)
 		}
 		clear := ui.Button(c.Key("clear-all"), "").Padding(0, 14).Height(34).Radius(17).Disabled(total.Files == 0 || s.clearing)
 		clear.Children(func() {
@@ -188,7 +214,7 @@ func (a *app) storageSummary(c *ui.Context) {
 		if clear.Clicked() {
 			a.askToClear("Clear all cached content?",
 				fmt.Sprintf("This deletes %s. Pages will download again as you open them, which needs a connection. Your favorites are kept.", humanBytes(total.Bytes)),
-				kindPicture, kindArtwork, kindSearch)
+				kindPicture, kindArtwork, kindSearch, kindCulture)
 		}
 	})
 	if s.err != "" {
