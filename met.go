@@ -149,15 +149,41 @@ func NewMet(cacheDir string) *Met {
 }
 
 // get fetches a URL, from the disk cache when it is younger than maxAge.
+// An older copy is fetched again, but kept: when the fetch fails, as
+// offline or while the API's firewall turns us away, get returns it
+// rather than the error.
 func (m *Met) get(ctx context.Context, u string, maxAge time.Duration) ([]byte, error) {
-	sum := sha1.Sum([]byte(u))
-	path := filepath.Join(m.cache, hex.EncodeToString(sum[:]))
-	if st, err := os.Stat(path); err == nil && (maxAge <= 0 || time.Since(st.ModTime()) < maxAge) {
+	path := m.cachePath(u)
+	var stale []byte
+	if st, err := os.Stat(path); err == nil {
 		if b, err := os.ReadFile(path); err == nil {
-			return b, nil
+			if maxAge <= 0 || time.Since(st.ModTime()) < maxAge {
+				return b, nil
+			}
+			stale = b
 		}
 	}
+	b, err := m.fetch(ctx, u, path, stale != nil)
+	if err != nil && stale != nil && ctx.Err() == nil && !errors.Is(err, errNotFound) {
+		return stale, nil
+	}
+	return b, err
+}
+
+// cachePath is where the copy of u is saved.
+func (m *Met) cachePath(u string) string {
+	sum := sha1.Sum([]byte(u))
+	return filepath.Join(m.cache, hex.EncodeToString(sum[:]))
+}
+
+// fetch downloads u and saves it at path. With a copy to fall back on
+// (hasStale), it gives up at the first failure, and at once while the API
+// is paused, rather than retrying and waiting the pause out.
+func (m *Met) fetch(ctx context.Context, u, path string, hasStale bool) ([]byte, error) {
 	api := strings.HasPrefix(u, metBase)
+	if api && hasStale && m.paused() {
+		return nil, errPaused
+	}
 	sem := m.sem
 	if api {
 		sem = m.api
@@ -169,8 +195,12 @@ func (m *Met) get(ctx context.Context, u string, maxAge time.Duration) ([]byte, 
 	}
 	defer func() { <-sem }()
 
+	attempts := 3
+	if hasStale {
+		attempts = 1
+	}
 	var last error
-	for attempt := 0; attempt < 3; attempt++ {
+	for attempt := 0; attempt < attempts; attempt++ {
 		if api {
 			m.pause.Lock()
 			wait := time.Until(m.pauseUntil)
@@ -192,7 +222,7 @@ func (m *Met) get(ctx context.Context, u string, maxAge time.Duration) ([]byte, 
 		res, err := m.http.Do(req)
 		if err != nil {
 			last = err
-			time.Sleep(time.Duration(attempt+1) * 400 * time.Millisecond)
+			m.backoff(attempt, attempts, 400*time.Millisecond)
 			continue
 		}
 		b, err := io.ReadAll(res.Body)
@@ -215,7 +245,7 @@ func (m *Met) get(ctx context.Context, u string, maxAge time.Duration) ([]byte, 
 			continue
 		case res.StatusCode >= 500:
 			last = fmt.Errorf("%s: %s", u, res.Status)
-			time.Sleep(time.Duration(attempt+1) * 800 * time.Millisecond)
+			m.backoff(attempt, attempts, 800*time.Millisecond)
 			continue
 		case res.StatusCode != http.StatusOK:
 			return nil, fmt.Errorf("%s: %s", u, res.Status)
@@ -223,7 +253,7 @@ func (m *Met) get(ctx context.Context, u string, maxAge time.Duration) ([]byte, 
 		if api && (len(b) == 0 || b[0] != '{') {
 			// A firewall's page in place of JSON: never cache it.
 			last = fmt.Errorf("%s: unexpected response", u)
-			time.Sleep(time.Duration(attempt+1) * 800 * time.Millisecond)
+			m.backoff(attempt, attempts, 800*time.Millisecond)
 			continue
 		}
 		_ = os.WriteFile(path, b, 0o644)
@@ -232,7 +262,25 @@ func (m *Met) get(ctx context.Context, u string, maxAge time.Duration) ([]byte, 
 	return nil, last
 }
 
-var errNotFound = errors.New("not found")
+var (
+	errNotFound = errors.New("not found")
+	errPaused   = errors.New("the API is paused after turning us away")
+)
+
+// backoff waits before the next attempt, longer each time, and not at all
+// after the last one.
+func (m *Met) backoff(attempt, attempts int, step time.Duration) {
+	if attempt+1 < attempts {
+		time.Sleep(time.Duration(attempt+1) * step)
+	}
+}
+
+// paused reports whether the API turned us away a moment ago.
+func (m *Met) paused() bool {
+	m.pause.Lock()
+	defer m.pause.Unlock()
+	return time.Now().Before(m.pauseUntil)
+}
 
 // Search returns a page of the IDs of the objects matching q, and how
 // many match.
