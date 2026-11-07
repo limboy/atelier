@@ -1,0 +1,13 @@
+{
+  "name": "atelier",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "mygo dev",
+    "build": "mygo build",
+    "build:dmg": "bash scripts/build-dmg.sh"
+  },
+  "devDependencies": {
+    "mygo-cli": "^0.8.3"
+  }
+}
