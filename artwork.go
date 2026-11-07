@@ -152,10 +152,12 @@ func (a *app) imageViewerPane(c *ui.Context, title string, pictures []viewerImag
 	}
 	pane.Children(func() {
 		if pic == nil || pic.bmp == nil {
-			if pic == nil || pic.failed {
+			if pic == nil {
+				ui.Text(c, "No picture is available for this artwork.").TextColor(inkFaint).Attach(ui.AnchorCenter, ui.AnchorCenter)
+			} else if pic.failed {
 				ui.Column(c).Gap(10).AlignItems(ui.Center).Attach(ui.AnchorCenter, ui.AnchorCenter).Children(func() {
 					ui.Text(c, "The picture could not be loaded.").TextColor(inkFaint)
-					if pictures[v.image].preview != "" && ui.Button(c.Key("retry-image"), "Retry image").Clicked() {
+					if ui.Button(c.Key("retry-image"), "Retry image").Clicked() {
 						delete(a.img.m, picKey{pictures[v.image].preview, 1800})
 					}
 				})

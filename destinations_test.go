@@ -30,6 +30,7 @@ func TestDestinationNavigationAndSourceLinks(t *testing.T) {
 	defer cancel()
 	museum := cultureItem{Name: "Example Museum", Path: "/partner/example-museum"}
 	work := cultureItem{Name: "Example painting", Path: "/asset/example-painting"}
+	story := cultureItem{Name: "Example story", Path: "/story/example-story"}
 	router := ui.NewRouter("/places")
 	router.Push("/places/view?path=%2Fentity%2Ftokyo%2Fm07dfk")
 	a := &app{
@@ -41,7 +42,7 @@ func TestDestinationNavigationAndSourceLinks(t *testing.T) {
 		},
 		destinations: map[string]*destinationState{
 			"/entity/tokyo/m07dfk": {detail: &destination{cultureItem: cultureItem{Name: "Tokyo", Path: "/entity/tokyo/m07dfk"}, Museums: []cultureItem{museum}}},
-			museum.Path:            {detail: &destination{cultureItem: museum, Works: []cultureItem{work}}},
+			museum.Path:            {detail: &destination{cultureItem: museum, Works: []cultureItem{work}, Stories: []cultureItem{story}}},
 		},
 		assets: map[string]*assetState{"example-painting": {art: &cultureArtwork{ID: "example-painting", Title: "Example painting", Path: work.Path}}},
 	}
@@ -71,6 +72,13 @@ func TestDestinationNavigationAndSourceLinks(t *testing.T) {
 	view.Advance(time.Second)
 	if a.router.Path() != "/museums/view" {
 		t.Fatal("Back did not return to the museum")
+	}
+	view.Scroll(640, 500, 0, 1000)
+	if err := view.Click("Open Example story on Google Arts & Culture"); err != nil {
+		t.Fatal(err)
+	}
+	if links := view.OpenedURLs(); len(links) != 1 || links[0] != cultureBase+story.Path || a.router.Path() != "/museums/view" {
+		t.Fatalf("story links = %v, path = %s", links, a.router.Path())
 	}
 	if err := view.Click("Back"); err != nil {
 		t.Fatal(err)

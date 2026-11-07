@@ -15,6 +15,9 @@ func TestCultureAssetLinks(t *testing.T) {
 	for _, tc := range []struct{ link, id string }{
 		{"https://artsandculture.google.com/asset/gleaners/GgHsT2RumWxbtw", "GgHsT2RumWxbtw"},
 		{"https://artsandculture.google.com/asset/gleaners/GgHsT2RumWxbtw?hl=en#details", "GgHsT2RumWxbtw"},
+		{"artsandculture.google.com/asset/gleaners/GgHsT2RumWxbtw", "GgHsT2RumWxbtw"},
+		{"http://artsandculture.google.com/asset/GgHsT2RumWxbtw", "GgHsT2RumWxbtw"},
+		{"ftp://artsandculture.google.com/asset/GgHsT2RumWxbtw", ""},
 		{"/asset/GgHsT2RumWxbtw", "GgHsT2RumWxbtw"},
 		{"/asset/%E5%86%A8%E5%B6%BD/abc_123-4", "abc_123-4"},
 		{"https://example.com/asset/gleaners/GgHsT2RumWxbtw", ""},
@@ -28,6 +31,25 @@ func TestCultureAssetLinks(t *testing.T) {
 		if id := cultureAssetID(tc.link); id != tc.id {
 			t.Errorf("%q: id=%q, want %q", tc.link, id, tc.id)
 		}
+	}
+}
+
+func TestCultureLinksAndText(t *testing.T) {
+	for raw, want := range map[string]string{
+		"/entity/jean-francois-millet/m0abc": cultureBase + "/entity/jean-francois-millet/m0abc",
+		"https://museum.example/collection":  "https://museum.example/collection",
+		"//museum.example/collection":        "https://museum.example/collection",
+		"javascript:alert(1)":                "",
+	} {
+		if got := cultureLink(raw); got != want {
+			t.Errorf("cultureLink(%q) = %q, want %q", raw, got, want)
+		}
+	}
+	if got := cultureDescription("a<p>b<br>c</p><div> d &amp; e </div>"); got != "a\n\nb\n\nc\n\nd & e" {
+		t.Errorf("description = %q", got)
+	}
+	if got := plainCultureText("a<p>b<br>c</p><div> d &amp; e </div>"); got != "a b c d & e" {
+		t.Errorf("plain text = %q", got)
 	}
 }
 

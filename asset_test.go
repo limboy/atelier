@@ -75,6 +75,17 @@ func TestNativeCultureArtworkViewer(t *testing.T) {
 	}
 }
 
+func TestArtworkWithoutPicture(t *testing.T) {
+	id := "GgHsT2RumWxbtw"
+	a := &app{router: ui.NewRouter("/asset/" + id), img: &images{m: map[picKey]*picture{}},
+		assets: map[string]*assetState{id: {art: &cultureArtwork{ID: id, Title: "Gleaners"}}},
+	}
+	view := ui.NewTester(a.view, 1280, 840)
+	if !view.HasText("No picture is available for this artwork.") || view.HasText("Retry image") {
+		t.Fatal("a missing picture looked like a failed download")
+	}
+}
+
 func TestPastedCultureArtworkLinkOpensNatively(t *testing.T) {
 	a := &app{router: ui.NewRouter("/museums"), query: "https://artsandculture.google.com/asset/gleaners/GgHsT2RumWxbtw"}
 	view := ui.NewTester(func(c *ui.Context) {

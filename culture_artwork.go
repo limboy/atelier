@@ -6,8 +6,6 @@ import (
 	"net/url"
 	"strings"
 	"time"
-
-	"golang.org/x/net/html"
 )
 
 // cultureArtwork keeps Google's IDs, credits and catalog fields separate
@@ -37,12 +35,16 @@ func validCultureAssetID(id string) bool {
 // cultureAssetID accepts source paths and pasted Google Arts & Culture
 // links, including links without a title slug. It never accepts other hosts.
 func cultureAssetID(raw string) string {
-	u, err := url.Parse(strings.TrimSpace(raw))
+	raw = strings.TrimSpace(raw)
+	if strings.HasPrefix(raw, "artsandculture.google.com/") {
+		raw = "https://" + raw
+	}
+	u, err := url.Parse(raw)
 	if err != nil || u.User != nil {
 		return ""
 	}
 	if u.IsAbs() {
-		if u.Scheme != "https" || u.Host != "artsandculture.google.com" {
+		if u.Scheme != "https" && u.Scheme != "http" || u.Host != "artsandculture.google.com" {
 			return ""
 		}
 	} else if u.Host != "" {
@@ -63,14 +65,16 @@ func (g *Culture) Artwork(ctx context.Context, id string) (*cultureArtwork, erro
 	if !validCultureAssetID(id) {
 		return nil, errors.New("invalid artwork ID")
 	}
-	r, err := g.request(ctx, "/api/asset", url.Values{"assetId": {id}}, "stella.ap", 7*24*time.Hour)
+	r, err := g.request(ctx, "/api/asset", url.Values{"assetId": {id}}, "stella.ap", 7*24*time.Hour, func(r []any) error {
+		if textAt(arrayAt(r, 2), 1) != id {
+			return errors.New("Google Arts & Culture returned a different artwork")
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
 	v := arrayAt(r, 2)
-	if textAt(v, 1) != id {
-		return nil, errors.New("Google Arts & Culture returned a different artwork")
-	}
 	art := &cultureArtwork{
 		ID: id, Title: plainCultureText(textAt(v, 2)), Date: plainCultureText(textAt(v, 3)),
 		Artist:      plainCultureText(textAt(arrayAt(v, 6), 0)),
@@ -100,38 +104,21 @@ func (g *Culture) Artwork(ctx context.Context, id string) (*cultureArtwork, erro
 				text = plainCultureText(textAt(arrayAt(entry, 2), 1))
 			}
 			if text != "" {
-				art.Details = append(art.Details, cultureProperty{Label: label, Value: text, URL: cultureURL(textAt(entry, 1))})
+				art.Details = append(art.Details, cultureProperty{Label: label, Value: text, URL: cultureLink(textAt(entry, 1))})
 			}
 		}
 	}
 	return art, nil
 }
 
-// Preserve paragraph breaks for a readable native description; catalog
-// labels and cards still use the single-line plainCultureText helper.
-func cultureDescription(raw string) string {
-	z := html.NewTokenizer(strings.NewReader(raw))
-	var paragraphs []string
-	var out strings.Builder
-	flush := func() {
-		if text := strings.Join(strings.Fields(out.String()), " "); text != "" {
-			paragraphs = append(paragraphs, text)
-		}
-		out.Reset()
+// cultureLink accepts absolute links and the source's own site-relative ones.
+func cultureLink(raw string) string {
+	if strings.HasPrefix(raw, "/") && !strings.HasPrefix(raw, "//") {
+		raw = cultureBase + raw
 	}
-	for {
-		token := z.Next()
-		switch token {
-		case html.ErrorToken:
-			flush()
-			return strings.Join(paragraphs, "\n\n")
-		case html.TextToken:
-			out.Write(z.Text())
-		case html.StartTagToken, html.EndTagToken, html.SelfClosingTagToken:
-			name, _ := z.TagName()
-			if string(name) == "br" || token == html.EndTagToken && (string(name) == "p" || string(name) == "div") {
-				flush()
-			}
-		}
-	}
+	return cultureURL(raw)
 }
+
+// cultureDescription keeps paragraph breaks for the artwork page; catalog
+// labels and cards use the single-line plainCultureText.
+func cultureDescription(raw string) string { return cultureHTMLText(raw, "\n\n") }

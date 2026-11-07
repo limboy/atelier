@@ -161,14 +161,16 @@ func (g *Culture) fetch(ctx context.Context, u string) ([]byte, error) {
 	return b, err
 }
 
-func (g *Culture) request(ctx context.Context, path string, params url.Values, tag string, age time.Duration) ([]any, error) {
+// request fetches a tagged record. check, when set, rejects records that
+// decode but are wrong for this request, so they are never cached.
+func (g *Culture) request(ctx context.Context, path string, params url.Values, tag string, age time.Duration, check func([]any) error) ([]any, error) {
 	params.Set("hl", "en")
 	params.Set("rt", "j")
 	u := cultureBase + path + "?" + params.Encode()
 	b, err := g.get(ctx, u, age, func(b []byte) error {
 		r, err := cultureResponse(b, tag)
-		if err == nil && tag == "stella.ap" && textAt(arrayAt(r, 2), 1) != params.Get("assetId") {
-			return errors.New("Google Arts & Culture returned a different artwork")
+		if err == nil && check != nil {
+			err = check(r)
 		}
 		return err
 	})
@@ -368,7 +370,7 @@ func (g *Culture) Directory(ctx context.Context, q cultureQuery, cursor string) 
 	if q.Text != "" {
 		p.Set("q", q.Text)
 	}
-	r, err := g.request(ctx, path, p, tag, 24*time.Hour)
+	r, err := g.request(ctx, path, p, tag, 24*time.Hour, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -393,7 +395,7 @@ func (g *Culture) Destination(ctx context.Context, kind destinationKind, path st
 	parts := strings.Split(strings.Trim(u.Path, "/"), "/")
 	d := &destination{cultureItem: cultureItem{Path: path}}
 	if kind == museums && len(parts) == 2 && parts[0] == "partner" {
-		r, err := g.request(ctx, "/api/partner", url.Values{"p": {parts[1]}}, "stella.pp2", 7*24*time.Hour)
+		r, err := g.request(ctx, "/api/partner", url.Values{"p": {parts[1]}}, "stella.pp2", 7*24*time.Hour, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -421,7 +423,7 @@ func (g *Culture) Destination(ctx context.Context, kind destinationKind, path st
 		return nil, errors.New("invalid place ID")
 	}
 	entityID = "/" + entityID[:1] + "/" + entityID[1:]
-	r, err := g.request(ctx, "/api/entity", url.Values{"entityId": {entityID}, "categoryId": {"place"}}, "stella.ep", 7*24*time.Hour)
+	r, err := g.request(ctx, "/api/entity", url.Values{"entityId": {entityID}, "categoryId": {"place"}}, "stella.ep", 7*24*time.Hour, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -438,19 +440,31 @@ func (g *Culture) Destination(ctx context.Context, kind destinationKind, path st
 	return d, nil
 }
 
-func plainCultureText(s string) string {
+func plainCultureText(s string) string { return cultureHTMLText(s, " ") }
+
+// cultureHTMLText reads the text of the source's HTML. br, p and div tags
+// end a paragraph; paragraphs are joined with sep.
+func cultureHTMLText(s, sep string) string {
 	z := html.NewTokenizer(strings.NewReader(s))
+	var paragraphs []string
 	var out strings.Builder
+	flush := func() {
+		if text := strings.Join(strings.Fields(out.String()), " "); text != "" {
+			paragraphs = append(paragraphs, text)
+		}
+		out.Reset()
+	}
 	for {
 		switch z.Next() {
 		case html.ErrorToken:
-			return strings.Join(strings.Fields(out.String()), " ")
+			flush()
+			return strings.Join(paragraphs, sep)
 		case html.TextToken:
 			out.Write(z.Text())
 		case html.StartTagToken, html.EndTagToken, html.SelfClosingTagToken:
-			name, _ := z.TagName()
-			if string(name) == "br" || string(name) == "p" || string(name) == "div" {
-				out.WriteByte(' ')
+			switch name, _ := z.TagName(); string(name) {
+			case "br", "p", "div":
+				flush()
 			}
 		}
 	}
