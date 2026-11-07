@@ -210,6 +210,10 @@ func (a *app) cultureGrid(c *ui.Context, items []cultureItem, width float32, nat
 }
 
 func (a *app) openDestination(item cultureItem) {
+	if cultureAssetID(item.Path) != "" {
+		a.openCultureArtwork(item)
+		return
+	}
 	if a.destinations[item.Path] == nil {
 		a.destinations[item.Path] = &destinationState{seed: item}
 	}
@@ -218,6 +222,7 @@ func (a *app) openDestination(item cultureItem) {
 }
 
 func (a *app) destinationCard(c *ui.Context, item cultureItem, w float32, native bool) {
+	native = native || cultureAssetID(item.Path) != ""
 	b := ui.ButtonBase(c).Column().AlignItems(ui.Stretch).Width(w).Gap(10).Cursor(ui.CursorPointer).Label(item.Name)
 	if !native {
 		b.Label("Open " + item.Name + " on Google Arts & Culture").Tooltip("Opens in your browser")
@@ -383,7 +388,7 @@ func (a *app) destinationSection(c *ui.Context, title string, items []cultureIte
 	ui.Column(c).Gap(18).Children(func() {
 		ui.Row(c).Gap(12).AlignItems(ui.Baseline).Children(func() {
 			ui.Text(c, title).Font(serif).FontSize(28)
-			if !native {
+			if !native && cultureAssetID(items[0].Path) == "" {
 				ui.Text(c, "Opens in your browser").FontSize(12).TextColor(inkFaint)
 			}
 		})

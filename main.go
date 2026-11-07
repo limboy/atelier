@@ -35,6 +35,7 @@ type app struct {
 	layouts      map[string]*masonryState
 	directories  map[destinationKind]*directoryState
 	destinations map[string]*destinationState
+	assets       map[string]*assetState
 
 	query string // the search field
 
@@ -139,7 +140,7 @@ func (a *app) theme(c *ui.Context) {
 func (a *app) view(c *ui.Context) {
 	a.theme(c)
 	ui.Column(c).Fill().AlignItems(ui.Stretch).Children(func() {
-		if a.immersive && !strings.HasPrefix(a.router.Path(), "/artwork/") {
+		if a.immersive && !strings.HasPrefix(a.router.Path(), "/artwork/") && !strings.HasPrefix(a.router.Path(), "/asset/") {
 			a.setImmersive(false) // went back from the artwork
 		}
 		if !a.immersive {
@@ -149,7 +150,8 @@ func (a *app) view(c *ui.Context) {
 			// Destination details change in place, like the main sections.
 			a.router.Transition = ui.TransitionAuto
 			if path == "/museums/view" || path == "/places/view" ||
-				a.lastPath == "/museums/view" || a.lastPath == "/places/view" {
+				a.lastPath == "/museums/view" || a.lastPath == "/places/view" ||
+				strings.HasPrefix(path, "/asset/") || strings.HasPrefix(a.lastPath, "/asset/") {
 				a.router.Transition = ui.TransitionFade
 			}
 			// The settings page scans the cache each time it opens.
@@ -199,6 +201,9 @@ func (a *app) view(c *ui.Context) {
 				id, _ := strconv.Atoi(r.Param("id"))
 				r.Title("Artwork")
 				a.artworkPage(c, id)
+			case r.Match("/asset/{id}"):
+				r.Title("Artwork")
+				a.assetPage(c, r.Param("id"))
 			default:
 				ui.Text(c, "Not found").Padding(40)
 			}
@@ -267,6 +272,7 @@ func main() {
 		layouts:      map[string]*masonryState{},
 		directories:  map[destinationKind]*directoryState{},
 		destinations: map[string]*destinationState{},
+		assets:       map[string]*assetState{},
 		favs:         loadFavorites(dataDir),
 		heroSince:    time.Now(),
 		timeSlider:   1870,

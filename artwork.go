@@ -74,21 +74,39 @@ func (a *app) artworkPage(c *ui.Context, id int) {
 }
 
 func (a *app) viewerPane(c *ui.Context, art *Artwork, v *viewer) {
-	pictures := []string{art.Image}
-	pictures = append(pictures, art.AdditionalImages...)
+	urls := append([]string{art.Image}, art.AdditionalImages...)
 	if art.Image == "" {
-		pictures = []string{art.ImageSmall}
+		urls = []string{art.ImageSmall}
+	}
+	pictures := make([]viewerImage, len(urls))
+	for i, u := range urls {
+		pictures[i] = viewerImage{preview: webLarge(u), full: u}
+		if i == 0 && art.ImageSmall != "" {
+			pictures[i].preview = art.ImageSmall
+		}
+	}
+	a.imageViewerPane(c, cleanTitle(art.Title), pictures, v, "Loading full resolution")
+}
+
+type viewerImage struct{ preview, full string }
+
+// imageViewerPane is shared by Met and Google Arts & Culture artworks.
+func (a *app) imageViewerPane(c *ui.Context, title string, pictures []viewerImage, v *viewer, hiresLabel string) {
+	if len(pictures) == 0 {
+		pictures = []viewerImage{{}}
+	}
+	if v.zoom == 0 {
+		v.zoom = 1
 	}
 	v.image = min(v.image, len(pictures)-1)
-	orig := pictures[v.image]
-	base := a.img.get(webLarge(orig), 1800)
-	if v.image == 0 && art.ImageSmall != "" {
-		base = a.img.get(art.ImageSmall, 1800)
-	}
+	orig := pictures[v.image].full
+	base := a.img.get(pictures[v.image].preview, 1800)
 	pic := base
+	var high *picture
 	if v.hires && orig != "" {
-		if hi := a.img.get(orig, 5000); hi != nil && hi.bmp != nil {
-			pic = hi
+		high = a.img.get(orig, 5000)
+		if high != nil && high.bmp != nil {
+			pic = high
 		}
 	}
 
@@ -134,8 +152,13 @@ func (a *app) viewerPane(c *ui.Context, art *Artwork, v *viewer) {
 	}
 	pane.Children(func() {
 		if pic == nil || pic.bmp == nil {
-			if pic != nil && pic.failed {
-				ui.Text(c, "The picture could not be loaded.").TextColor(inkFaint).Attach(ui.AnchorCenter, ui.AnchorCenter)
+			if pic == nil || pic.failed {
+				ui.Column(c).Gap(10).AlignItems(ui.Center).Attach(ui.AnchorCenter, ui.AnchorCenter).Children(func() {
+					ui.Text(c, "The picture could not be loaded.").TextColor(inkFaint)
+					if pictures[v.image].preview != "" && ui.Button(c.Key("retry-image"), "Retry image").Clicked() {
+						delete(a.img.m, picKey{pictures[v.image].preview, 1800})
+					}
+				})
 			} else {
 				ui.Spinner(c).FontSize(22).TextColor(inkFaint).Attach(ui.AnchorCenter, ui.AnchorCenter)
 			}
@@ -145,19 +168,15 @@ func (a *app) viewerPane(c *ui.Context, art *Artwork, v *viewer) {
 				RadialGradient(ui.RadialGradient{Stops: []ui.GradientStop{{Color: pic.tone.Alpha(0.35), At: 0}, {Color: ui.Transparent, At: 1}}})
 			img := ui.Image(c.Key(pic), pic.bmp).Absolute().Top(36).Left(36).Right(36).Bottom(84).Fit(ui.Contain).
 				Scale(v.zoom, v.zoom).Translate(v.tx, v.ty).TransformOrigin(0.5, 0.5).PassThrough().
-				Label(cleanTitle(art.Title))
+				Label(title)
 			img.Opacity(img.AnimateTo("in", 1, ui.Animation{Duration: 250e6, NonMotion: true}))
 		}
 
 		// Thumbnails of the artwork's other pictures.
 		if len(pictures) > 1 {
 			ui.ScrollHorizontal(c.Key("thumbs")).Absolute().Left(20).Bottom(18).MaxWidthPercent(60).Gap(8).Scrollbars(false).Children(func() {
-				for i, u := range pictures {
-					tu := webLarge(u)
-					if i == 0 && art.ImageSmall != "" {
-						tu = art.ImageSmall
-					}
-					t := a.img.get(tu, 240)
+				for i, image := range pictures {
+					t := a.img.get(image.preview, 240)
 					b := ui.ButtonBase(c.Key(i)).Size(48, 48).Radius(6).Clip().Shrink(0).Background(ui.Hex("#2a2622")).
 						Cursor(ui.CursorPointer).Label("Picture " + strconv.Itoa(i+1))
 					if i == v.image {
@@ -197,11 +216,11 @@ func (a *app) viewerPane(c *ui.Context, art *Artwork, v *viewer) {
 				viewerButton(c, icExpand, "Full screen", func() { a.setImmersive(true) })
 			}
 		})
-		if v.hires && pic == base && orig != "" {
+		if high != nil && high.loading && pic == base {
 			ui.Row(c.Key("hires")).Absolute().Right(20).Top(18).Gap(8).Padding(6, 12).Radius(14).
 				Background(ui.RGBA(0, 0, 0, 0.45)).TextColor(ui.Hex("#d9d2c7")).Children(func() {
 				ui.Spinner(c).FontSize(12).TextColor(ui.Hex("#d9d2c7"))
-				ui.Text(c, "Loading full resolution").FontSize(12)
+				ui.Text(c, hiresLabel).FontSize(12)
 			})
 		}
 	})

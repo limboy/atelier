@@ -38,6 +38,9 @@ type cultureItem struct {
 func (i cultureItem) URL() string { return cultureBase + i.Path }
 
 func (i cultureItem) route() string {
+	if id := cultureAssetID(i.Path); id != "" {
+		return "/asset/" + id
+	}
 	kind := places
 	if strings.HasPrefix(i.Path, "/partner/") {
 		kind = museums
@@ -163,7 +166,10 @@ func (g *Culture) request(ctx context.Context, path string, params url.Values, t
 	params.Set("rt", "j")
 	u := cultureBase + path + "?" + params.Encode()
 	b, err := g.get(ctx, u, age, func(b []byte) error {
-		_, err := cultureResponse(b, tag)
+		r, err := cultureResponse(b, tag)
+		if err == nil && tag == "stella.ap" && textAt(arrayAt(r, 2), 1) != params.Get("assetId") {
+			return errors.New("Google Arts & Culture returned a different artwork")
+		}
 		return err
 	})
 	if err != nil {
@@ -207,6 +213,9 @@ func validCultureRecord(r []any, tag string) bool {
 		return textAt(arrayAt(r, 2), 1) != ""
 	case "stella.ep":
 		return textAt(r, 3) == "place" && textAt(r, 4) != ""
+	case "stella.ap":
+		v := arrayAt(r, 2)
+		return textAt(v, 0) == "stella.av" && validCultureAssetID(textAt(v, 1)) && textAt(v, 2) != ""
 	}
 	return false
 }
@@ -256,11 +265,25 @@ func cultureImage(raw string, width int) string {
 		return ""
 	}
 	base, options, _ := strings.Cut(u.Path, "=")
-	u.Path = base + "=w" + fmt.Sprint(width)
-	if options != "" {
-		u.Path += "-" + options
+	size := fmt.Sprint(width)
+	u.Path = base + "=w" + size + "-h" + size
+	for _, option := range strings.Split(options, "-") {
+		if option == "" || cultureCropOption(option) {
+			continue
+		}
+		u.Path += "-" + option
 	}
 	return u.String()
+}
+
+// cultureCropOption reports image options that set the size or crop it. With
+// both w and h set, a crop flag would cut the picture to a square.
+func cultureCropOption(option string) bool {
+	switch option {
+	case "c", "p", "n", "cc", "ci":
+		return true
+	}
+	return len(option) > 1 && strings.ContainsRune("whs", rune(option[0])) && strings.Trim(option[1:], "0123456789") == ""
 }
 
 func cultureObject(a []any) (cultureItem, bool) {

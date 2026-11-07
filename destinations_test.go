@@ -16,7 +16,7 @@ func TestNavigationFitsMinimumWindowWidth(t *testing.T) {
 			ui.Column(c).Fill().Children(func() { a.topBar(c) })
 		}, width, 100)
 		view.SetTitleBar(ui.TitleBar{Height: 56, Left: 80})
-		for _, label := range []string{"Home", "Explore", "Museums", "Places", "Time machine", "Favorites", "Settings", "Search the Met collection"} {
+		for _, label := range []string{"Home", "Explore", "Museums", "Places", "Time machine", "Favorites", "Settings", "Search artworks or open a link"} {
 			r, ok := view.Find(label)
 			if !ok || r.X < 0 || r.X+r.W > float32(width) || r.W == 0 {
 				t.Errorf("%s at width %d: bounds=%+v, found=%v", label, width, r, ok)
@@ -43,6 +43,7 @@ func TestDestinationNavigationAndSourceLinks(t *testing.T) {
 			"/entity/tokyo/m07dfk": {detail: &destination{cultureItem: cultureItem{Name: "Tokyo", Path: "/entity/tokyo/m07dfk"}, Museums: []cultureItem{museum}}},
 			museum.Path:            {detail: &destination{cultureItem: museum, Works: []cultureItem{work}}},
 		},
+		assets: map[string]*assetState{"example-painting": {art: &cultureArtwork{ID: "example-painting", Title: "Example painting", Path: work.Path}}},
 	}
 	view := ui.NewTester(a.view, 1280, 840)
 	if err := view.Click("Example Museum"); err != nil {
@@ -56,14 +57,24 @@ func TestDestinationNavigationAndSourceLinks(t *testing.T) {
 	if a.router.Path() != "/museums/view" || !view.HasText("Collection highlights") {
 		t.Fatal("related museum did not open natively")
 	}
-	if err := view.Click("Open Example painting on Google Arts & Culture"); err != nil {
+	if err := view.Click("Example painting"); err != nil {
 		t.Fatal(err)
 	}
-	if links := view.OpenedURLs(); len(links) != 1 || links[0] != cultureBase+work.Path {
-		t.Fatalf("opened links = %v", links)
+	view.Advance(time.Second)
+	if a.router.Path() != "/asset/example-painting" || len(view.OpenedURLs()) != 0 {
+		t.Fatal("artwork did not open inside the app")
 	}
-	a.router.Back()
+	if err := view.Click("Back"); err != nil {
+		t.Fatal(err)
+	}
 	view.Frame()
+	view.Advance(time.Second)
+	if a.router.Path() != "/museums/view" {
+		t.Fatal("Back did not return to the museum")
+	}
+	if err := view.Click("Back"); err != nil {
+		t.Fatal(err)
+	}
 	view.Advance(time.Second)
 	if a.router.Path() != "/places/view" || !view.HasText("Museums & collections in Tokyo") {
 		t.Fatal("back did not return to the place")

@@ -35,10 +35,15 @@ func (a *app) topBar(c *ui.Context) {
 		a.navItem(c, "/time", icClock, "Time machine", path == "/time")
 		a.navItem(c, "/favorites", icHeart, "Favorites", path == "/favorites")
 		ui.Spacer(c)
-		f := ui.SearchField(c.Key("search"), &a.query).Placeholder("Search artworks…").
-			Label("Search the Met collection").Width(max(160, min(220, w-1080))).Radius(18)
+		f := ui.SearchField(c.Key("search"), &a.query).Placeholder("Search artworks or paste a link…").
+			Label("Search artworks or open a link").Tooltip("Search The Met, or paste a Google Arts & Culture artwork link").Width(max(160, min(220, w-1080))).Radius(18)
 		if f.Submitted() && strings.TrimSpace(a.query) != "" {
-			a.router.Push("/search?q=" + urlQuery(strings.TrimSpace(a.query)))
+			q := strings.TrimSpace(a.query)
+			if id := cultureAssetID(q); id != "" {
+				a.openCultureArtwork(cultureItem{Path: "/asset/" + id})
+			} else {
+				a.router.Push("/search?q=" + urlQuery(q))
+			}
 		}
 		if path != "/museums" && path != "/places" && c.Shortcut(ui.Cmd, ui.KeyF) {
 			f.Focus()

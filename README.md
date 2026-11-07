@@ -5,9 +5,10 @@ A desktop app for exploring art, built with [mygo](https://github.com/egoist/myg
 - **Home**: a featured carousel, an art of the day, and rows of themed stories (Impressionism, Van Gogh, ukiyo-e, Ancient Egypt, armor…) that scroll sideways.
 - **Explore**: artists, movements, mediums and the Met's departments, each opening its works in a grid that loads more as it scrolls.
 - **Museums**: the [Google Arts & Culture partner directory](https://artsandculture.google.com/partner), with featured collections, A–Z browsing, search by museum or city, and pages of results. Native detail pages show descriptions, collection highlights, stories, websites, addresses and map links.
-- **Places**: [countries, cities and landmarks](https://artsandculture.google.com/category/place), with featured and A–Z browsing, place name suggestions, collection previews and related museums. Related museums open inside Atelier; artwork previews, stories and virtual visits open on Google Arts & Culture in your browser.
+- **Places**: [countries, cities and landmarks](https://artsandculture.google.com/category/place), with featured and A–Z browsing, place name suggestions, collection previews and related museums. Museums and artworks open inside Atelier; stories and virtual visits open on Google Arts & Culture in your browser.
 - **Time machine**: a slider and eras from 3000 BCE to 1950.
 - **Artwork**: a viewer that zooms with the trackpad, the wheel, a double click or ⌘= ⌘− ⌘0, pans by dragging, and loads the full resolution scan as you zoom in. **F** shows the artwork alone, full screen; **Esc** leaves. Beside it, the details, its themes, more by the artist and from its department.
+- **Google Arts & Culture artworks**: collection highlights open in the native viewer, with zoom, pan, full screen, the full description, original catalog fields and credits, and a link to the owning museum. Paste an artwork URL, such as `https://artsandculture.google.com/asset/gleaners/GgHsT2RumWxbtw`, into the top search field and press Return to open it directly. Back returns to the museum or place you came from, with an in-place fade.
 - **Search** (⌘F) and **Favorites**.
 - **Settings** (⌘, or the gear): what the cache holds, as pictures, artwork details, search results, and museums and places, with their sizes; the cached Met artworks, filtered and removed one by one; clearing each kind or all, and the folder in Finder.
 
@@ -21,7 +22,7 @@ bun run dev       # develop: rebuilds and restarts the app as files change
 bun run build     # build/darwin-arm64/Atelier.app and a .dmg
 bun run build:dmg # verified universal DMG for Apple Silicon and Intel (macOS only)
 go test .         # offline: API clients and disk caches through fake transports
-ATELIER_LIVE_TEST=1 go test -run TestCultureLive -v . # optional: live directory, pagination, search and detail checks
+ATELIER_LIVE_TEST=1 go test -run 'TestCulture.*Live' -v . # optional: live directories, pagination, search, details and artwork image
 ```
 
 To install the build you made:
@@ -37,6 +38,8 @@ bun run build && ditto build/darwin-arm64/Atelier.app /Applications/Atelier.app
 - `main.go`: the app's state, theme, routes and window.
 - `met.go`: the client of the Met's API, with its disk cache and pacing.
 - `culture.go`: the Google Arts & Culture directory and detail client, response parsing, pagination and separate disk cache.
+- `culture_artwork.go`: Google Arts & Culture artwork metadata, catalog fields, descriptions and source links.
+- `asset.go`: native Google Arts & Culture artwork pages, using the shared viewer in `artwork.go`.
 - `destinations.go`: the native museum and place directories, search, detail pages and home shortcuts.
 - `state.go`: feeds of a search's artworks, loaded a page at a time, and favorites.
 - `images.go`: pictures downloaded, scaled and decoded off the main thread, newest first.
@@ -53,7 +56,7 @@ Responses are cached in `~/Library/Caches/Atelier/met`: pictures for good, artwo
 
 Museums and places use the public JSON requests made by the Google Arts & Culture website. These are unofficial endpoints and can change; unreadable responses produce a retry option and never replace a valid cached copy. Directories use the server's pagination cursors. Museum searches return paginated matches; place searches use Google's place suggestions. ⌘F focuses the directory's search field while browsing museums or places; elsewhere it focuses artwork search.
 
-Their responses and preview images are cached separately in `~/Library/Caches/Atelier/artsandculture`: directory results for a day, details and images for a week, with an older copy available if a refresh fails. Settings includes their storage and can clear it. The development app uses its own cache.
+Their responses and images are cached separately in `~/Library/Caches/Atelier/artsandculture`: directory results for a day, museum/place/artwork details and images for a week, with an older copy available if a refresh fails. Settings includes their storage and can clear it. The development app uses its own cache. The native artwork viewer uses the image renditions Google provides; its website's gigapixel tile viewer is not embedded.
 
 Favorites are saved in `~/Library/Application Support/Atelier/favorites.json`. The development app, from `bun run dev`, keeps its own in `Atelier Dev`.
 

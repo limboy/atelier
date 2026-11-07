@@ -73,6 +73,7 @@ func (a *app) clearCache(kinds ...cacheKind) {
 					}
 					a.directories = map[destinationKind]*directoryState{}
 					a.destinations = map[string]*destinationState{}
+					a.assets = map[string]*assetState{}
 					for k := range a.img.m {
 						if cultureImage(k.url, 1) != "" {
 							delete(a.img.m, k)
@@ -187,7 +188,7 @@ func (a *app) storageSummary(c *ui.Context) {
 			ui.Divider(c)
 			a.storageRow(c, "Search results", "The lists on each page. Refreshed after a day.", toneSearches, r.Searches, kindSearch)
 			ui.Divider(c)
-			a.storageRow(c, "Museums & places", "Directories, details and preview images from Google Arts & Culture.", toneCulture, r.Culture, kindCulture)
+			a.storageRow(c, "Arts & Culture", "Museums, places, artwork details and images.", toneCulture, r.Culture, kindCulture)
 		})
 	})
 	ui.Row(c).Gap(8).Wrap().Children(func() {
