@@ -230,8 +230,20 @@ func (a *app) imageViewerPane(c *ui.Context, title string, pictures []viewerImag
 	c.OnWindowShortcut(ui.Cmd, ui.KeyMinus, func() { v.zoomAt(1/1.5, r.W/2, r.H/2, r.W, r.H) })
 	c.OnWindowShortcut(ui.Cmd, ui.Key0, func() { v.zoom, v.tx, v.ty = 1, 0, 0 })
 	c.OnWindowShortcut(0, ui.KeyF, func() { a.setImmersive(!a.immersive) })
-	if a.immersive {
-		c.OnWindowShortcut(0, ui.KeyEscape, func() { a.setImmersive(false) })
+	// Esc first leaves full screen, then the artwork itself, but not while
+	// typing: a search field clears itself with Esc, and an empty one keeps
+	// the page.
+	if a.immersive || !c.FocusTakesText() {
+		c.OnWindowShortcut(0, ui.KeyEscape, func() {
+			switch {
+			case a.immersive:
+				a.setImmersive(false)
+			case a.router.CanGoBack():
+				a.router.Back()
+			default:
+				a.router.Push("/home")
+			}
+		})
 	}
 }
 

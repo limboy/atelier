@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -98,5 +99,66 @@ func TestPastedCultureArtworkLinkOpensNatively(t *testing.T) {
 	view.Key(0, ui.KeyEnter)
 	if a.router.Path() != "/asset/GgHsT2RumWxbtw" || !a.router.CanGoBack() || len(view.OpenedURLs()) != 0 {
 		t.Fatal("pasted artwork link did not open natively with history")
+	}
+}
+
+func TestEscapeLeavesFullScreenThenArtwork(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	id := "GgHsT2RumWxbtw"
+	router := ui.NewRouter("/museums")
+	router.Push("/asset/" + id)
+	a := &app{router: router, img: &images{m: map[picKey]*picture{}},
+		directories: map[destinationKind]*directoryState{
+			museums: {feed: &cultureFeed{q: cultureQuery{Kind: museums}, done: true, ctx: ctx, cancel: cancel}},
+		},
+		assets: map[string]*assetState{id: {art: &cultureArtwork{ID: id, Title: "Gleaners"}}},
+	}
+	view := ui.NewTester(a.view, 1280, 840)
+
+	// A focused search field keeps Esc for itself.
+	if err := view.Click("Search artworks or open a link"); err != nil {
+		t.Fatal(err)
+	}
+	view.Key(0, ui.KeyEscape)
+	view.Frame()
+	if a.router.Path() != "/asset/"+id {
+		t.Fatal("Esc in the search field left the artwork")
+	}
+	if err := view.Click("Gleaners"); err != nil {
+		t.Fatal(err)
+	}
+
+	view.Key(0, ui.KeyF)
+	view.Frame()
+	if !a.immersive {
+		t.Fatal("F did not enter full screen")
+	}
+	view.Key(0, ui.KeyEscape)
+	view.Frame()
+	if a.immersive || a.router.Path() != "/asset/"+id {
+		t.Fatalf("first Esc: immersive=%v path=%s, want the artwork without full screen", a.immersive, a.router.Path())
+	}
+	view.Key(0, ui.KeyEscape)
+	view.Advance(time.Second)
+	if a.router.Path() != "/museums" {
+		t.Fatalf("second Esc: path=%s, want /museums", a.router.Path())
+	}
+}
+
+func TestEscapeWithoutHistoryGoesHome(t *testing.T) {
+	id := "GgHsT2RumWxbtw"
+	a := &app{router: ui.NewRouter("/asset/" + id), img: &images{m: map[picKey]*picture{}},
+		assets: map[string]*assetState{id: {art: &cultureArtwork{ID: id, Title: "Gleaners"}}},
+	}
+	view := ui.NewTester(func(c *ui.Context) {
+		if a.router.Path() == "/asset/"+id {
+			a.assetPage(c, id)
+		}
+	}, 1280, 840)
+	view.Key(0, ui.KeyEscape)
+	view.Frame()
+	if a.router.Path() != "/home" {
+		t.Fatalf("path=%s, want /home", a.router.Path())
 	}
 }
