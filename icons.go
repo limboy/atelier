@@ -26,6 +26,4 @@ var (
 	icLeft     = icon(`<path d="m15 5-7 7 7 7"/>`)
 	icRight    = icon(`<path d="m9 5 7 7-7 7"/>`)
 	icShuffle  = icon(`<path d="M4 7h3c5 0 5 10 10 10h3M4 17h3c1.6 0 2.6-1 3.4-2.3M13.6 9.3C14.4 8 15.4 7 17 7h3M18 4l3 3-3 3M18 14l3 3-3 3"/>`)
-	// The app's mark: a frame around a sun over hills.
-	logoMark = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32"><rect x="2" y="2" width="28" height="28" rx="7" fill="#b4472b"/><circle cx="20.5" cy="11.5" r="3.2" fill="#f6d9a8"/><path d="M5 24.5 12 15l5 6.2 3-3.4 7 6.7z" fill="#fbf4e8"/></svg>`))
 )

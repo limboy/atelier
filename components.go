@@ -13,7 +13,7 @@ import (
 const topBarHeight = 56
 
 // topBar is the bar along the top of the window, under the window's
-// buttons: history, the app's name, its sections and the search field.
+// buttons: history, its sections and the search field.
 func (a *app) topBar(c *ui.Context) {
 	bar := c.TitleBar()
 	path := a.router.Path()
@@ -23,10 +23,6 @@ func (a *app) topBar(c *ui.Context) {
 		DragWindow().Children(func() {
 		ui.BackButton(c, a.router)
 		ui.ForwardButton(c, a.router)
-		ui.ButtonBase(c.Key("logo")).Gap(8).Padding(4, 10, 4, 6).Radius(8).Children(func() {
-			ui.Image(c, logoMark).Size(24, 24)
-			ui.Text(c, "Atelier").Font(serif).FontSize(19).FontWeight(600).LetterSpacing(0.2)
-		}).Label("Atelier, home").OnClick(func() { a.router.Push("/home") })
 		ui.Box(c).Width(12)
 		a.navItem(c, "/home", icHome, "Home", path == "/home")
 		a.navItem(c, "/artists", icArtist, "Artists", strings.HasPrefix(path, "/artists") || path == "/explore")

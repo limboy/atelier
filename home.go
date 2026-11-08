@@ -93,9 +93,26 @@ func (a *app) hero(c *ui.Context) {
 					// The picture blurred behind fills the frame, the
 					// picture itself sits on the right, whole.
 					ui.Image(c, pic.bmp).Absolute().Top(-40).Left(-40).Right(-40).Bottom(-40).Fit(ui.Cover).Blur(40).Opacity(0.55)
-					zoom := 1 + 0.04*layer.Animate("ken", on, period+time.Second)
-					ui.Image(c, pic.bmp).Absolute().Top(28).Bottom(76).Right(48).WidthPercent(52).Fit(ui.Contain).
-						ObjectPosition(1, 0.5).Scale(zoom, zoom).TransformOrigin(0.75, 0.5)
+					image := ui.Box(c.Key("picture")).Absolute().Top(28).Bottom(76).Right(48).WidthPercent(52).
+						Label(cleanTitle(art.Title))
+					active := ui.Local(image, "active", func() bool { return false })
+					if on == 1 && !*active {
+						// Animate starts at its first target; seed the unzoomed
+						// size when this picture becomes visible, even after loading.
+						image.Jump("ken", 0)
+					}
+					*active = on == 1
+					zoom := 1 + 0.04*image.AnimateWith("ken", 1, period+time.Second, ui.Linear)
+					image.Draw(func(p *ui.Painter, frame ui.Rect) {
+						iw, ih := ui.ImageSize(pic.bmp)
+						fit := min(frame.W/iw, frame.H/ih)
+						w, h := iw*fit, ih*fit
+						// Fit on the right, then enlarge around the artwork's
+						// own center rather than the frame's empty space.
+						cx, cy := frame.X+frame.W-w/2, frame.Y+frame.H/2
+						w, h = w*zoom, h*zoom
+						p.ImageRegion(pic.bmp, ui.Rect{}, ui.Rect{X: cx - w/2, Y: cy - h/2, W: w, H: h}, ui.ImageOptions{})
+					})
 				}
 				ui.Box(c).Absolute().Top(0).Left(0).Bottom(0).WidthPercent(70).
 					Gradient(ui.RGBA(14, 12, 10, 0.92), ui.RGBA(14, 12, 10, 0), 90)
