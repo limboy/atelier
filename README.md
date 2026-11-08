@@ -42,7 +42,7 @@ bun run build && ditto build/darwin-arm64/Atelier.app /Applications/Atelier.app
 - `culture_tiles.go`: Google Arts & Culture tile discovery, pyramid metadata, signed requests and tile decryption.
 - `tiles.go`: display-density-aware tile selection, viewport cancellation, bounded decoding/cache and native tile rendering.
 - `asset.go`: native Google Arts & Culture artwork pages, using the shared viewer in `artwork.go`.
-- `destinations.go`: the native artist, museum and place directories, search, detail pages and home shortcuts.
+- `destinations.go`: the native artist, museum and place directories, search and detail pages.
 - `state.go`: feeds of a search's artworks, loaded a page at a time, and favorites.
 - `images.go`: pictures downloaded, scaled and decoded off the main thread, newest first.
 - `cache.go`: what the cache holds, by kind, and clearing it.

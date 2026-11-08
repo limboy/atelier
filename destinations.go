@@ -422,32 +422,3 @@ func externalButton(c *ui.Context, label, link string) {
 		c.OpenURL(link)
 	}
 }
-
-func (a *app) discoveryLinks(c *ui.Context) {
-	ui.Row(c).Padding(0, 40).Gap(20).Children(func() {
-		for _, link := range []struct {
-			kind       destinationKind
-			title, sub string
-			ic         *ui.SVG
-		}{
-			{museums, "Museums around the world", "Discover museums, galleries and their collections", icMuseum},
-			{places, "A world of places", "Explore countries, cities and cultural landmarks", icGlobe},
-		} {
-			b := ui.ButtonBase(c.Key(link.kind)).Grow(1).Padding(24).Gap(18).Radius(10).Border(1, line).Cursor(ui.CursorPointer).Label(link.title)
-			if b.Hovered() {
-				b.Background(wash)
-			}
-			b.Children(func() {
-				ui.Icon(c, link.ic).Size(30, 30).TextColor(accent).Shrink(0)
-				ui.Column(c).Grow(1).Gap(5).Children(func() {
-					ui.Text(c, link.title).Font(serif).FontSize(23)
-					ui.Text(c, link.sub).FontSize(12).TextColor(inkSoft)
-				})
-				ui.Icon(c, icRight).Size(18, 18).TextColor(inkSoft)
-			})
-			if b.Clicked() {
-				a.router.Push("/" + string(link.kind))
-			}
-		}
-	})
-}

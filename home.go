@@ -34,7 +34,6 @@ func (a *app) home(c *ui.Context) {
 	ui.Scroll(c).Fill().Children(func() {
 		ui.Column(c).Gap(52).Padding(28, 0, 60).Children(func() {
 			a.hero(c)
-			a.discoveryLinks(c)
 			a.artOfTheDay(c)
 			for i, s := range stories {
 				// Rows load as they come near, not all as the app opens.
