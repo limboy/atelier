@@ -42,7 +42,6 @@ jobs:
       - name: Import the certificate and the notary credentials
         env:
           MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
-          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
           APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
@@ -54,8 +53,9 @@ jobs:
           security unlock-keychain -p "$password" "$keychain"
 
           echo "$MACOS_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          # The .p12 was exported without a password.
           security import "$RUNNER_TEMP/certificate.p12" -k "$keychain" \
-            -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+            -P "" -T /usr/bin/codesign
           rm "$RUNNER_TEMP/certificate.p12"
           security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain"
           security list-keychains -d user -s "$keychain" login.keychain

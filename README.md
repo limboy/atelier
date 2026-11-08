@@ -39,7 +39,7 @@ Pushing a tag builds a signed, notarized universal DMG on GitHub Actions and pub
 git tag v0.2.0 && git push origin v0.2.0
 ```
 
-[The workflow](.github/workflows/release.yml) needs these repository secrets: `MACOS_CERTIFICATE` (base64 of the Developer ID `.p12`), `MACOS_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_API_KEY_P8` (base64), `APPLE_API_KEY_ID`, `APPLE_API_ISSUER_ID` and `MYGO_UPDATER_PRIVATE_KEY`. The last one signs updates, and its public key is in [mygo.config.ts](mygo.config.ts). Losing it strands installed copies, so keep a backup.
+[The workflow](.github/workflows/release.yml) needs these repository secrets: `MACOS_CERTIFICATE` (base64 of the Developer ID `.p12`, exported without a password), `APPLE_SIGNING_IDENTITY`, `APPLE_API_KEY_P8` (base64), `APPLE_API_KEY_ID`, `APPLE_API_ISSUER_ID` and `MYGO_UPDATER_PRIVATE_KEY`. The last one signs updates, and its public key is in [mygo.config.ts](mygo.config.ts). Losing it strands installed copies, so keep a backup.
 
 ## Tests
 
