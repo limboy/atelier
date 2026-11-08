@@ -16,7 +16,7 @@ func TestNavigationFitsMinimumWindowWidth(t *testing.T) {
 			ui.Column(c).Fill().Children(func() { a.topBar(c) })
 		}, width, 100)
 		view.SetTitleBar(ui.TitleBar{Height: 56, Left: 80})
-		for _, label := range []string{"Home", "Artists", "Museums", "Places", "Time machine", "Favorites", "Settings", "Search artworks or open a link"} {
+		for _, label := range []string{"Home", "Artists", "Museums", "Places", "Time machine", "Favorites", "Settings"} {
 			r, ok := view.Find(label)
 			if !ok || r.X < 0 || r.X+r.W > float32(width) || r.W == 0 {
 				t.Errorf("%s at width %d: bounds=%+v, found=%v", label, width, r, ok)

@@ -13,11 +13,10 @@ import (
 const topBarHeight = 56
 
 // topBar is the bar along the top of the window, under the window's
-// buttons: history, its sections and the search field.
+// buttons: history, its sections and settings.
 func (a *app) topBar(c *ui.Context) {
 	bar := c.TitleBar()
 	path := a.router.Path()
-	w, _ := c.Size()
 	ui.Row(c).Height(max(bar.Height, topBarHeight)).Shrink(0).Padding(0, bar.Right+16, 0, bar.Left+14).
 		Gap(6).Background(paper).BorderWidth(0, 0, 1, 0).BorderColor(line).
 		DragWindow().Children(func() {
@@ -31,19 +30,6 @@ func (a *app) topBar(c *ui.Context) {
 		a.navItem(c, "/time", icClock, "Time machine", path == "/time")
 		a.navItem(c, "/favorites", icHeart, "Favorites", path == "/favorites")
 		ui.Spacer(c)
-		f := ui.SearchField(c.Key("search"), &a.query).Placeholder("Search artworks or paste a link…").
-			Label("Search artworks or open a link").Tooltip("Search The Met, or paste a Google Arts & Culture artwork link").Width(max(160, min(220, w-1080))).Radius(18)
-		if f.Submitted() && strings.TrimSpace(a.query) != "" {
-			q := strings.TrimSpace(a.query)
-			if cultureAssetID(q) != "" {
-				a.openCultureArtwork(cultureItem{Path: q})
-			} else {
-				a.router.Push("/search?q=" + urlQuery(q))
-			}
-		}
-		if path != "/artists" && path != "/explore" && path != "/museums" && path != "/places" && c.Shortcut(ui.Cmd, ui.KeyF) {
-			f.Focus()
-		}
 		gear := ui.ButtonBase(c.Key("settings")).Size(34, 34).Radius(17).Cursor(ui.CursorPointer).
 			Label("Settings").Tooltip("Settings").Selected(path == "/settings")
 		switch {
@@ -83,11 +69,6 @@ func (a *app) navItem(c *ui.Context, path string, ic *ui.SVG, label string, on b
 	if b.Clicked() && !on {
 		a.router.Push(path)
 	}
-}
-
-func urlQuery(s string) string {
-	r := strings.NewReplacer("%", "%25", "&", "%26", "+", "%2B", "#", "%23", "?", "%3F", " ", "+")
-	return r.Replace(s)
 }
 
 // sectionHeader is a heading over a row of artworks, with a link to see

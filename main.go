@@ -38,8 +38,6 @@ type app struct {
 	destinations map[string]*destinationState
 	assets       map[string]*assetState
 
-	query string // the search field
-
 	// The home page's carousel.
 	heroAt    int
 	heroSince time.Time
@@ -196,10 +194,6 @@ func (a *app) view(c *ui.Context) {
 			case r.Match("/favorites"):
 				r.Title("Favorites")
 				a.favoritesPage(c)
-			case r.Match("/search"):
-				q := r.Query("q")
-				r.Title("Search: " + q)
-				a.collectionPage(c, "Results for “"+q+"”", "Search", Query{Q: q})
 			case r.Match("/collection"):
 				title := r.Query("title")
 				r.Title(title)

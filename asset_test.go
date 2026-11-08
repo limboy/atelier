@@ -87,21 +87,6 @@ func TestArtworkWithoutPicture(t *testing.T) {
 	}
 }
 
-func TestPastedCultureArtworkLinkOpensNatively(t *testing.T) {
-	a := &app{router: ui.NewRouter("/museums"), query: "https://artsandculture.google.com/asset/gleaners/GgHsT2RumWxbtw"}
-	view := ui.NewTester(func(c *ui.Context) {
-		a.theme(c)
-		ui.Column(c).Fill().Children(func() { a.topBar(c) })
-	}, 1280, 100)
-	if err := view.Click("Search artworks or open a link"); err != nil {
-		t.Fatal(err)
-	}
-	view.Key(0, ui.KeyEnter)
-	if a.router.Path() != "/asset/GgHsT2RumWxbtw" || !a.router.CanGoBack() || len(view.OpenedURLs()) != 0 {
-		t.Fatal("pasted artwork link did not open natively with history")
-	}
-}
-
 func TestEscapeLeavesFullScreenThenArtwork(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -115,19 +100,6 @@ func TestEscapeLeavesFullScreenThenArtwork(t *testing.T) {
 		assets: map[string]*assetState{id: {art: &cultureArtwork{ID: id, Title: "Gleaners"}}},
 	}
 	view := ui.NewTester(a.view, 1280, 840)
-
-	// A focused search field keeps Esc for itself.
-	if err := view.Click("Search artworks or open a link"); err != nil {
-		t.Fatal(err)
-	}
-	view.Key(0, ui.KeyEscape)
-	view.Frame()
-	if a.router.Path() != "/asset/"+id {
-		t.Fatal("Esc in the search field left the artwork")
-	}
-	if err := view.Click("Gleaners"); err != nil {
-		t.Fatal(err)
-	}
 
 	view.Key(0, ui.KeyF)
 	view.Frame()
