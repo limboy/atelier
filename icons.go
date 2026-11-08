@@ -25,5 +25,7 @@ var (
 	icFolder   = icon(`<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>`)
 	icLeft     = icon(`<path d="m15 5-7 7 7 7"/>`)
 	icRight    = icon(`<path d="m9 5 7 7-7 7"/>`)
+	icPlay     = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M7 5v14l12-7z"/></svg>`))
+	icPause    = icon(`<path d="M8 5v14M16 5v14"/>`)
 	icShuffle  = icon(`<path d="M4 7h3c5 0 5 10 10 10h3M4 17h3c1.6 0 2.6-1 3.4-2.3M13.6 9.3C14.4 8 15.4 7 17 7h3M18 4l3 3-3 3M18 14l3 3-3 3"/>`)
 )

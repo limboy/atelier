@@ -54,6 +54,9 @@ type app struct {
 	// immersive shows an artwork alone, the window full screen.
 	immersive bool
 
+	// The random page's run, while there is one.
+	show *randomState
+
 	settings settingsState
 	lastPath string // the page the last frame showed
 }
@@ -79,6 +82,10 @@ func (a *app) menu() *mygo.Menu {
 		}},
 		{Role: mygo.RoleEditMenu},
 		{Label: "View", Submenu: []*mygo.MenuItem{
+			{Label: "Random", Accelerator: "CmdOrCtrl+Shift+R", Click: func(*mygo.MenuItem, *mygo.Window) {
+				a.update(func() { a.router.Push("/random") })
+			}},
+			mygo.Separator(),
 			{Role: mygo.RoleToggleFullScreen},
 		}},
 		{Role: mygo.RoleWindowMenu},
@@ -140,7 +147,7 @@ func (a *app) theme(c *ui.Context) {
 func (a *app) view(c *ui.Context) {
 	a.theme(c)
 	ui.Column(c).Fill().AlignItems(ui.Stretch).Children(func() {
-		if a.immersive && !strings.HasPrefix(a.router.Path(), "/artwork/") && !strings.HasPrefix(a.router.Path(), "/asset/") {
+		if a.immersive && !strings.HasPrefix(a.router.Path(), "/artwork/") && !strings.HasPrefix(a.router.Path(), "/asset/") && a.router.Path() != "/random" {
 			a.setImmersive(false) // went back from the artwork
 		}
 		if !a.immersive {
@@ -189,6 +196,9 @@ func (a *app) view(c *ui.Context) {
 			case r.Match("/time"):
 				r.Title("Time machine")
 				a.timeMachine(c)
+			case r.Match("/random"):
+				r.Title("Random")
+				a.randomPage(c)
 			case r.Match("/settings"):
 				r.Title("Settings")
 				a.settingsPage(c)

@@ -28,6 +28,7 @@ func (a *app) topBar(c *ui.Context) {
 		a.navItem(c, "/museums", icMuseum, "Museums", strings.HasPrefix(path, "/museums"))
 		a.navItem(c, "/places", icGlobe, "Places", strings.HasPrefix(path, "/places"))
 		a.navItem(c, "/time", icClock, "Time machine", path == "/time")
+		a.navItem(c, "/random", icShuffle, "Random", path == "/random")
 		a.navItem(c, "/favorites", icHeart, "Favorites", path == "/favorites")
 		ui.Spacer(c)
 		gear := ui.ButtonBase(c.Key("settings")).Size(34, 34).Radius(17).Cursor(ui.CursorPointer).
