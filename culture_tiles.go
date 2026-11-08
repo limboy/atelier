@@ -35,14 +35,18 @@ type tileCoord struct{ z, x, y int }
 var cultureTilePage = regexp.MustCompile(`\]\s*,\s*"(//[a-zA-Z0-9./_:\-]+)"\s*,\s*(?:"([^"]*)"|null)`)
 var cultureImageHost = regexp.MustCompile(`^lh[0-9]+\.(googleusercontent\.com|ggpht\.com)$`)
 
+// errNoTiles marks an artwork without a usable pyramid, as opposed to one
+// that could not be reached. The viewer shows the regular large image then.
+var errNoTiles = errors.New("artwork has no tile pyramid")
+
 func parseCultureTilePage(b []byte) (*culturePyramid, error) {
 	m := cultureTilePage.FindSubmatch(b)
 	if m == nil {
-		return nil, errors.New("artwork has no tile information")
+		return nil, fmt.Errorf("%w: no tile information", errNoTiles)
 	}
 	u, err := url.Parse("https:" + string(m[1]))
 	if err != nil || u.User != nil || u.Port() != "" || !cultureImageHost.MatchString(u.Hostname()) || u.Path == "" || strings.Contains(u.Path, "=") {
-		return nil, errors.New("invalid artwork tile address")
+		return nil, fmt.Errorf("%w: invalid tile address", errNoTiles)
 	}
 	return &culturePyramid{base: u.String(), token: string(m[2])}, nil
 }
@@ -61,21 +65,21 @@ func (p *culturePyramid) readLevels(b []byte) error {
 		} `xml:"pyramid_level"`
 	}
 	if err := xml.Unmarshal(b, &info); err != nil {
-		return fmt.Errorf("invalid artwork tile information: %w", err)
+		return fmt.Errorf("%w: invalid tile information: %v", errNoTiles, err)
 	}
 	if info.Width <= 0 || info.Height <= 0 || info.Width > 2048 || info.Height > 2048 ||
 		len(info.Levels) == 0 || len(info.Levels) > 32 || info.Origin != "" && info.Origin != "TOP_LEFT" {
-		return errors.New("unsupported artwork tile pyramid")
+		return fmt.Errorf("%w: unsupported tile pyramid", errNoTiles)
 	}
 	levels := make([]tileLevel, 0, len(info.Levels))
 	for _, l := range info.Levels {
 		if l.Cols <= 0 || l.Rows <= 0 || l.Cols > 1<<20 || l.Rows > 1<<20 ||
 			l.EmptyX < 0 || l.EmptyX >= info.Width || l.EmptyY < 0 || l.EmptyY >= info.Height {
-			return errors.New("invalid artwork tile dimensions")
+			return fmt.Errorf("%w: invalid tile dimensions", errNoTiles)
 		}
 		level := tileLevel{info.Width*l.Cols - l.EmptyX, info.Height*l.Rows - l.EmptyY, l.Cols, l.Rows}
 		if n := len(levels); n > 0 && (level.width < levels[n-1].width || level.height < levels[n-1].height) {
-			return errors.New("artwork tile levels are out of order")
+			return fmt.Errorf("%w: tile levels are out of order", errNoTiles)
 		}
 		levels = append(levels, level)
 	}
@@ -87,18 +91,23 @@ func (g *Culture) Tiles(ctx context.Context, id string) (*culturePyramid, error)
 	if !validCultureAssetID(id) {
 		return nil, errors.New("invalid artwork ID")
 	}
-	b, err := g.get(ctx, cultureBase+"/asset/"+id+"?hl=en", 24*time.Hour, func(b []byte) error {
-		_, err := parseCultureTilePage(b)
+	// The validator keeps what it parsed from the copy get returns: it runs
+	// on that copy last whenever it succeeds.
+	var p *culturePyramid
+	_, err := g.get(ctx, cultureBase+"/asset/"+id+"?hl=en", 24*time.Hour, func(b []byte) error {
+		parsed, err := parseCultureTilePage(b)
+		if err == nil {
+			p = parsed
+		}
 		return err
 	})
 	if err != nil {
 		return nil, err
 	}
-	p, err := parseCultureTilePage(b)
-	if err != nil {
-		return nil, err
-	}
 	_, err = g.get(ctx, p.base+"=g", 7*24*time.Hour, p.readLevels)
+	if errors.Is(err, errNotFound) {
+		err = fmt.Errorf("%w: %v", errNoTiles, err)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -132,7 +141,9 @@ func (g *Culture) Tile(ctx context.Context, p *culturePyramid, c tileCoord) ([]b
 	if w == 0 || h == 0 {
 		return nil, errors.New("tile is outside the artwork")
 	}
-	b, err := g.get(ctx, p.tileURL(c), 7*24*time.Hour, func(b []byte) error {
+	// Keep the validated plaintext so a tile is decrypted once per load.
+	var tile []byte
+	_, err := g.get(tileRequest(ctx), p.tileURL(c), 7*24*time.Hour, func(b []byte) error {
 		plain, err := decryptCultureTile(b)
 		if err != nil {
 			return err
@@ -144,12 +155,13 @@ func (g *Culture) Tile(ctx context.Context, p *culturePyramid, c tileCoord) ([]b
 		if cfg.Width < w || cfg.Height < h || cfg.Width > p.tileWidth || cfg.Height > p.tileHeight {
 			return errors.New("artwork tile has unexpected dimensions")
 		}
+		tile = plain
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	return decryptCultureTile(b)
+	return tile, nil
 }
 
 // Some tiles are ordinary images. Others frame a plaintext image header,

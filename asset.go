@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -40,11 +41,15 @@ func (a *app) openCultureArtwork(item cultureItem) {
 	}
 	// A shared link's region of the picture shows once it has loaded.
 	if p, ok := cultureAssetViewport(item.Path); ok {
-		s.viewer.pending = &p
+		s.viewer.pending, s.viewer.didShow = &p, false
 	}
-	// Opening the artwork again retries details that failed before.
+	// Opening the artwork again retries details that failed before, and a
+	// pyramid that could not be reached; one that does not exist stays off.
 	if s.art == nil && !s.loading {
 		s.err = nil
+	}
+	if t := s.viewer.tiles; t != nil && t.err != nil && !errors.Is(t.err, errNoTiles) {
+		t.err = nil
 	}
 	a.router.Push("/asset/" + id)
 }

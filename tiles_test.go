@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"image"
 	"image/color"
 	"image/draw"
@@ -252,5 +254,125 @@ func TestTiledArtworkStreamsDetailOverPreview(t *testing.T) {
 	}
 	if _, ok := a.img.m[picKey{cultureImage(p.base, 4096), 5000}]; ok {
 		t.Fatal("tiled viewer unnecessarily loaded a full-image rendition")
+	}
+}
+
+func TestTileStatusIgnoresMissingPyramidAndPrefetchRing(t *testing.T) {
+	s := newArtworkTiles(&app{})
+	tv := &tileView{err: fmt.Errorf("%w: no tile information", errNoTiles)}
+	s.activate(tv)
+	if loading, failed := s.status(tv); loading || failed {
+		t.Fatalf("artwork without tiles reported loading %v, failed %v", loading, failed)
+	}
+	in, ring := tileKey{"b", tileCoord{1, 0, 0}}, tileKey{"b", tileCoord{1, 1, 0}}
+	s.wanted = map[tileKey]bool{in: true, ring: true}
+	s.visible = map[tileKey]bool{in: true}
+	s.cache[in] = &detailTile{}
+	s.failed[ring] = true
+	if loading, failed := s.status(tv); loading || failed {
+		t.Fatalf("prefetch ring reported loading %v, failed %v", loading, failed)
+	}
+	s.failed[in], s.cache = true, map[tileKey]*detailTile{}
+	if _, failed := s.status(tv); !failed {
+		t.Fatal("a visible tile failed without an error")
+	}
+}
+
+func TestTilesPlanFromWhereTheZoomIsHeaded(t *testing.T) {
+	s := newArtworkTiles(&app{})
+	p := testPyramid()
+	v := &viewer{zoom: 1, tiles: &tileView{pyramid: p}}
+	v.layout(800, 800, 1)
+	v.snap()
+	v.zoomAt(8, 400, 376) // the frame still shows zoom 1
+	s.request(v, 1)
+	target := *v
+	target.snap()
+	want := p.plan(&target, 1)[0].z
+	if len(s.wanted) == 0 {
+		t.Fatal("no tiles wanted")
+	}
+	for key := range s.wanted {
+		if key.z != want {
+			t.Fatalf("glide asked for level %d, want the target's %d", key.z, want)
+		}
+	}
+}
+
+func TestSharedRegionYieldsToTheUserWhileTilesLoad(t *testing.T) {
+	id := "slow-artwork"
+	state := &assetState{art: &cultureArtwork{ID: id, Title: "A slow painting", Image: "https://lh3.googleusercontent.com/ci/slow"}}
+	state.viewer.tiles = &tileView{id: id, loading: true}
+	state.viewer.pending = &viewport{0.3, 0.3, 0.2, 0.2}
+	a := &app{router: ui.NewRouter("/asset/" + id), assets: map[string]*assetState{id: state}, img: &images{m: map[picKey]*picture{}}}
+	bmp := ui.NewBitmap(image.NewRGBA(image.Rect(0, 0, 1200, 1200)))
+	for _, size := range []int{1800, 4096} {
+		a.img.m[picKey{cultureImage(state.art.Image, size), map[int]int{1800: 1800, 4096: 5000}[size]}] = &picture{bmp: bmp, w: 1200, h: 1200}
+	}
+	view := ui.NewTester(a.view, 1280, 840)
+	view.Advance(time.Second)
+	v := &state.viewer
+	if v.pending == nil || v.zoom <= 1 {
+		t.Fatalf("shared region not shown while tiles load: %+v", v)
+	}
+	if err := view.Click("Fit to window"); err != nil {
+		t.Fatal(err)
+	}
+	view.Advance(time.Second)
+	if v.pending != nil || v.zoom != 1 {
+		t.Fatalf("shared region overrode fitting the picture: zoom %v, pending %v", v.zoom, v.pending)
+	}
+}
+
+func TestFailedTilesFallBackToTheLargePicture(t *testing.T) {
+	g := NewCulture(t.TempDir())
+	g.http.Transport = cultureTransport(func(r *http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: 404, Header: http.Header{}, Body: io.NopCloser(bytes.NewReader(nil))}, nil
+	})
+	id := "broken-tiles"
+	p := &culturePyramid{base: "https://lh3.googleusercontent.com/ci/broken", tileWidth: 256, tileHeight: 256, levels: []tileLevel{{512, 512, 2, 2}}}
+	state := &assetState{art: &cultureArtwork{ID: id, Title: "Broken tiles", Image: p.base}}
+	state.viewer = viewer{zoom: 2, hires: true, tiles: &tileView{id: id, pyramid: p}}
+	a := &app{culture: g, router: ui.NewRouter("/asset/" + id), assets: map[string]*assetState{id: state}, img: &images{m: map[picKey]*picture{}}}
+	a.img.m[picKey{cultureImage(p.base, 1800), 1800}] = &picture{bmp: ui.NewBitmap(image.NewRGBA(image.Rect(0, 0, 128, 128))), w: 128, h: 128}
+	a.tiles = newArtworkTiles(a)
+	posted := make(chan func(), 16)
+	a.tiles.post = func(fn func()) { posted <- fn }
+	view := ui.NewTester(a.view, 1280, 840)
+	view.Advance(time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	for len(a.tiles.failed) == 0 || len(a.tiles.jobs) != 0 {
+		select {
+		case fn := <-posted:
+			fn()
+			view.Frame()
+		case <-ctx.Done():
+			t.Fatal("tiles did not fail")
+		}
+	}
+	view.Frame()
+	if _, ok := a.img.m[picKey{cultureImage(p.base, 4096), 5000}]; !ok {
+		t.Fatal("failed tiles did not fall back to the large picture")
+	}
+	if _, ok := view.Find("Retry detail"); !ok {
+		t.Fatal("failed tiles offered no retry")
+	}
+}
+
+func TestReopeningRetriesAnUnreachablePyramidOnly(t *testing.T) {
+	id := "GgHsT2RumWxbtw"
+	a := &app{router: ui.NewRouter("/home"), assets: map[string]*assetState{}}
+	s := &assetState{art: &cultureArtwork{ID: id}}
+	a.assets[id] = s
+	s.viewer.tiles = &tileView{id: id, err: errors.New("connection reset")}
+	a.openCultureArtwork(cultureItem{Path: "/asset/gleaners/" + id})
+	if s.viewer.tiles.err != nil {
+		t.Fatal("reopening did not retry the pyramid")
+	}
+	s.viewer.tiles.err = fmt.Errorf("%w: no tile information", errNoTiles)
+	a.openCultureArtwork(cultureItem{Path: "/asset/gleaners/" + id})
+	if s.viewer.tiles.err == nil {
+		t.Fatal("reopening refetches a pyramid the artwork does not have")
 	}
 }

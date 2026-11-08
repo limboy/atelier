@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"image"
 	"image/draw"
 	"math"
@@ -49,6 +50,7 @@ type artworkTiles struct {
 	cache   map[tileKey]*detailTile
 	jobs    map[tileKey]*tileJob
 	wanted  map[tileKey]bool
+	visible map[tileKey]bool // the wanted tiles inside the view, not the prefetch ring
 	failed  map[tileKey]bool
 	pending []tileCoord
 	bytes   int
@@ -107,7 +109,7 @@ func (s *artworkTiles) deactivate() {
 	for _, j := range s.jobs {
 		j.cancel()
 	}
-	s.active, s.wanted, s.pending = nil, nil, nil
+	s.active, s.wanted, s.visible, s.pending = nil, nil, nil, nil
 	s.failed = map[tileKey]bool{}
 }
 
@@ -180,13 +182,24 @@ func (p *culturePyramid) plan(v *viewer, scale float32) []tileCoord {
 	return coords
 }
 
+// request plans from where the view is headed rather than the frame being
+// shown, so a zoom glide does not queue and cancel each level on its way.
 func (s *artworkTiles) request(v *viewer, scale float32) {
 	p := v.tiles.pyramid
+	target := *v
+	target.sz, target.sx, target.sy = v.zoom, v.tx, v.ty
 	s.clock++
-	s.wanted, s.pending = map[tileKey]bool{}, nil
-	for _, c := range p.plan(v, scale) {
+	s.wanted, s.visible, s.pending = map[tileKey]bool{}, map[tileKey]bool{}, nil
+	var r image.Rectangle
+	for i, c := range p.plan(&target, scale) {
+		if i == 0 {
+			r = p.tileRange(c.z, &target)
+		}
 		key := tileKey{p.base, c}
 		s.wanted[key] = true
+		if image.Pt(c.x, c.y).In(r) {
+			s.visible[key] = true
+		}
 		if tile := s.cache[key]; tile != nil {
 			tile.used = s.clock
 		} else if s.jobs[key] == nil && !s.failed[key] {
@@ -247,7 +260,7 @@ func (s *artworkTiles) load(ctx context.Context, p *culturePyramid, c tileCoord)
 	var err error
 	for attempt := range 3 {
 		b, err = s.app.culture.Tile(ctx, p, c)
-		if err == nil || ctx.Err() != nil || err == errNotFound {
+		if err == nil || ctx.Err() != nil || errors.Is(err, errNotFound) {
 			break
 		}
 		if attempt < 2 {
@@ -326,16 +339,22 @@ func (v *viewer) pictureRect(frame ui.Rect) ui.Rect {
 	return ui.Rect{X: frame.X + v.w/2 + v.sx - w/2, Y: frame.Y + v.cy + v.sy - h/2, W: w, H: h}
 }
 
+// status reports on the tiles in view only: the prefetch ring neither keeps
+// the spinner going nor raises an error. A pyramid that could not load is
+// not a failure either; the viewer falls back to the regular large image.
 func (s *artworkTiles) status(v *tileView) (loading, failed bool) {
 	if s.active != v {
 		return false, false
 	}
-	loading, failed = v.loading, v.err != nil
-	for key := range s.wanted {
-		loading = loading || s.jobs[key] != nil
-		failed = failed || s.failed[key]
+	loading = v.loading
+	for key := range s.visible {
+		if s.failed[key] {
+			failed = true
+		} else if s.cache[key] == nil {
+			loading = true
+		}
 	}
-	return loading || len(s.pending) > 0, failed
+	return loading, failed
 }
 
 func (s *artworkTiles) retry(v *tileView) {

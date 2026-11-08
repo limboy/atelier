@@ -88,12 +88,21 @@ type Culture struct {
 	http        *http.Client
 	cache       string
 	api, images chan struct{}
+	tiles       chan struct{} // deep-zoom tiles, so they never hold up previews
+}
+
+type tileRequestKey struct{}
+
+// tileRequest marks a fetch as a deep-zoom tile, which waits for its own
+// download slots instead of those of the pictures and thumbnails.
+func tileRequest(ctx context.Context) context.Context {
+	return context.WithValue(ctx, tileRequestKey{}, true)
 }
 
 func NewCulture(cacheDir string) *Culture {
 	dir := filepath.Join(cacheDir, "artsandculture")
 	_ = os.MkdirAll(dir, 0o755)
-	return &Culture{http: &http.Client{Timeout: 25 * time.Second}, cache: dir, api: make(chan struct{}, 2), images: make(chan struct{}, 4)}
+	return &Culture{http: &http.Client{Timeout: 25 * time.Second}, cache: dir, api: make(chan struct{}, 2), images: make(chan struct{}, 4), tiles: make(chan struct{}, tileDownloads)}
 }
 
 func (g *Culture) cachePath(u string) string {
@@ -143,6 +152,9 @@ func (g *Culture) fetch(ctx context.Context, u string) ([]byte, error) {
 	sem := g.api
 	if parsed, err := url.Parse(u); err == nil && cultureImageHost.MatchString(parsed.Hostname()) {
 		sem = g.images
+		if ctx.Value(tileRequestKey{}) != nil && g.tiles != nil {
+			sem = g.tiles
+		}
 	}
 	select {
 	case sem <- struct{}{}:

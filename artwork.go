@@ -28,8 +28,10 @@ type viewer struct {
 	// its size fitted in the frame, and how far it may zoom.
 	w, h, cy, fw, fh, max float32
 
-	pending *viewport // a region to show once the picture's shape is known
-	tiles   *tileView // optional Google Arts & Culture detail pyramid
+	pending *viewport  // a region to show once the picture's shape is known
+	placed  [3]float32 // zoom, tx and ty as pending last left them
+	didShow bool       // pending has been shown at least once
+	tiles   *tileView  // optional Google Arts & Culture detail pyramid
 }
 
 // viewport is a region of a picture, as shares of its width and height: its
@@ -246,9 +248,14 @@ func (a *app) imageViewerPane(c *ui.Context, title string, pictures []viewerImag
 	orig := pictures[v.image].full
 	base := a.img.get(pictures[v.image].preview, 1800)
 	pic := base
+	tileLoading, tileFailed := false, false
+	if a.tiles != nil && v.tiles != nil && v.hires {
+		tileLoading, tileFailed = a.tiles.status(v.tiles)
+	}
 	var high *picture
 	if v.hires && orig != "" {
-		if pyramid != nil {
+		// Tiles replace the large picture, unless some of them cannot load.
+		if pyramid != nil && !tileFailed {
 			high = a.img.m[picKey{orig, 5000}]
 		} else {
 			high = a.img.get(orig, 5000)
@@ -281,18 +288,24 @@ func (a *app) imageViewerPane(c *ui.Context, title string, pictures []viewerImag
 	} else if aspect > 0 && v.fw > 0 && !(high != nil && high.loading) && !(v.tiles != nil && v.tiles.loading) {
 		v.max = min(max(2*float32(pic.w)/v.fw, 4), maxZoom)
 	}
-	if v.zoom > v.max {
-		v.zoomAt(1, r.W/2, r.H/2)
-	}
+	// A shared region shows once the picture's shape is known, and again
+	// when the pyramid gives its exact shape and zoom limit, unless the view
+	// has been moved in the meantime.
 	if v.pending != nil && aspect > 0 {
-		if r.W > 0 {
+		if r.W <= 0 {
+			c.AnimationFrame() // for the frame's size
+		} else if v.didShow && v.placed != [3]float32{v.zoom, v.tx, v.ty} {
+			v.pending = nil
+		} else {
 			v.show(*v.pending)
+			v.placed, v.didShow = [3]float32{v.zoom, v.tx, v.ty}, true
 			if v.tiles == nil || !v.tiles.loading {
 				v.pending = nil
 			}
-		} else {
-			c.AnimationFrame() // for the frame's size
 		}
+	}
+	if v.zoom > v.max {
+		v.zoomAt(1, r.W/2, r.H/2)
 	}
 	if pane.Dragging() {
 		pane.Cursor(ui.CursorGrabbing)
@@ -428,10 +441,6 @@ func (a *app) imageViewerPane(c *ui.Context, title string, pictures []viewerImag
 				viewerButton(c, icExpand, "Full screen", func() { a.setImmersive(true) })
 			}
 		})
-		tileLoading, tileFailed := false, false
-		if a.tiles != nil && v.tiles != nil && v.hires {
-			tileLoading, tileFailed = a.tiles.status(v.tiles)
-		}
 		if tileFailed {
 			ui.Row(c.Key("tile-error")).Absolute().Right(20).Top(18).Gap(8).Padding(6, 12).Radius(14).
 				Background(ui.RGBA(0, 0, 0, 0.65)).Children(func() {
@@ -488,8 +497,9 @@ func navigator(c *ui.Context, pic *picture, v *viewer, opacity float32) {
 		Cursor(ui.CursorPointer).Label("Overview").Tooltip("Overview: click or drag to move the view")
 	n.Dragged()
 	if n.Pressed() || n.Clicked() {
-		x, y, _ := n.PointerPosition()
-		v.centerOn(x/nw, y/nh)
+		if x, y, ok := n.PointerPosition(); ok {
+			v.centerOn(x/nw, y/nh)
+		}
 	}
 	u0, w0, u1, w1 := v.visible()
 	x0, y0, x1, y1 := u0*nw, w0*nh, u1*nw, w1*nh
