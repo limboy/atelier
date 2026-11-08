@@ -141,7 +141,7 @@ func (g *Culture) fetch(ctx context.Context, u string) ([]byte, error) {
 	}
 	// Metadata must not wait behind images from the page just left.
 	sem := g.api
-	if cultureImage(u, 1) != "" {
+	if parsed, err := url.Parse(u); err == nil && cultureImageHost.MatchString(parsed.Hostname()) {
 		sem = g.images
 	}
 	select {

@@ -26,6 +26,7 @@ type app struct {
 	met     *Met
 	culture *Culture
 	img     *images
+	tiles   *artworkTiles
 	router  *ui.Router
 
 	feeds        map[string]*feed
@@ -147,6 +148,9 @@ func (a *app) view(c *ui.Context) {
 			a.topBar(c)
 		}
 		if path := a.router.Path(); path != a.lastPath {
+			if a.tiles != nil {
+				a.tiles.deactivate()
+			}
 			// Destination details change in place, like the main sections.
 			a.router.Transition = ui.TransitionAuto
 			if path == "/artists/view" || path == "/museums/view" || path == "/places/view" ||

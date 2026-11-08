@@ -66,6 +66,9 @@ func (a *app) clearCache(kinds ...cacheKind) {
 				case kindPicture:
 					a.img.m = map[picKey]*picture{}
 				case kindCulture:
+					if a.tiles != nil {
+						a.tiles.clear()
+					}
 					for _, s := range a.directories {
 						if s.feed != nil {
 							s.feed.cancel()

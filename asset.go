@@ -38,6 +38,10 @@ func (a *app) openCultureArtwork(item cultureItem) {
 	if item.Image != "" {
 		s.seed.Image = item.Image
 	}
+	// A shared link's region of the picture shows once it has loaded.
+	if p, ok := cultureAssetViewport(item.Path); ok {
+		s.viewer.pending = &p
+	}
 	// Opening the artwork again retries details that failed before.
 	if s.art == nil && !s.loading {
 		s.err = nil
@@ -65,6 +69,7 @@ func (a *app) assetPage(c *ui.Context, id string) {
 	if s.art == nil && !s.loading && s.err == nil {
 		a.loadCultureArtwork(id, s)
 	}
+	a.prepareTiles(id, &s.viewer)
 	d := s.art
 	preview, full := s.seed.Image, ""
 	if d == nil {

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/url"
 	"strings"
@@ -35,30 +36,58 @@ func validCultureAssetID(id string) bool {
 // cultureAssetID accepts source paths and pasted Google Arts & Culture
 // links, including links without a title slug. It never accepts other hosts.
 func cultureAssetID(raw string) string {
+	id, _ := cultureAsset(raw)
+	return id
+}
+
+func cultureAsset(raw string) (string, *url.URL) {
 	raw = strings.TrimSpace(raw)
 	if strings.HasPrefix(raw, "artsandculture.google.com/") {
 		raw = "https://" + raw
 	}
 	u, err := url.Parse(raw)
 	if err != nil || u.User != nil {
-		return ""
+		return "", nil
 	}
 	if u.IsAbs() {
 		if u.Scheme != "https" && u.Scheme != "http" || u.Host != "artsandculture.google.com" {
-			return ""
+			return "", nil
 		}
 	} else if u.Host != "" {
-		return ""
+		return "", nil
 	}
 	parts := strings.Split(strings.TrimSuffix(u.Path, "/"), "/")
 	if (len(parts) != 3 && len(parts) != 4) || parts[0] != "" || parts[1] != "asset" {
-		return ""
+		return "", nil
 	}
 	id := parts[len(parts)-1]
 	if !validCultureAssetID(id) {
-		return ""
+		return "", nil
 	}
-	return id
+	return id, u
+}
+
+// cultureAssetViewport reads the region of the picture a shared artwork
+// link shows, from its ms parameter: the center of the view and its size,
+// as shares of the picture, as
+// {"x":0.53,"y":0.8,"z":11,"size":{"width":0.47,"height":0.4}}.
+func cultureAssetViewport(raw string) (viewport, bool) {
+	_, u := cultureAsset(raw)
+	if u == nil || u.Query().Get("ms") == "" {
+		return viewport{}, false
+	}
+	var ms struct {
+		X, Y *float64
+		Size struct{ Width, Height float64 }
+	}
+	if json.Unmarshal([]byte(u.Query().Get("ms")), &ms) != nil || ms.X == nil || ms.Y == nil {
+		return viewport{}, false
+	}
+	p := viewport{float32(*ms.X), float32(*ms.Y), float32(ms.Size.Width), float32(ms.Size.Height)}
+	if p.x < 0 || p.x > 1 || p.y < 0 || p.y > 1 || p.w <= 0 || p.h <= 0 || p.w >= 1 && p.h >= 1 {
+		return viewport{}, false
+	}
+	return p, true
 }
 
 func (g *Culture) Artwork(ctx context.Context, id string) (*cultureArtwork, error) {

@@ -39,8 +39,8 @@ func (a *app) topBar(c *ui.Context) {
 			Label("Search artworks or open a link").Tooltip("Search The Met, or paste a Google Arts & Culture artwork link").Width(max(160, min(220, w-1080))).Radius(18)
 		if f.Submitted() && strings.TrimSpace(a.query) != "" {
 			q := strings.TrimSpace(a.query)
-			if id := cultureAssetID(q); id != "" {
-				a.openCultureArtwork(cultureItem{Path: "/asset/" + id})
+			if cultureAssetID(q) != "" {
+				a.openCultureArtwork(cultureItem{Path: q})
 			} else {
 				a.router.Push("/search?q=" + urlQuery(q))
 			}
