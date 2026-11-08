@@ -64,6 +64,7 @@ func (a *app) menu() *mygo.Menu {
 		{Label: "Atelier", Submenu: []*mygo.MenuItem{
 			{Role: mygo.RoleAbout},
 			mygo.Separator(),
+			{Label: "Check for Updates…", Click: func(*mygo.MenuItem, *mygo.Window) { a.checkForUpdates(true) }},
 			{Label: "Settings…", Accelerator: "CmdOrCtrl+,", Click: func(*mygo.MenuItem, *mygo.Window) {
 				a.update(func() { a.router.Push("/settings") })
 			}},
@@ -294,6 +295,7 @@ func main() {
 			Content:              ui.View(a.view),
 		})
 		mygo.App.SetMenu(a.menu())
+		a.checkForUpdates(false)
 		// Leaving full screen otherwise (the green button, Esc, a
 		// gesture) ends the immersive view too.
 		a.win.OnLeaveFullScreen(func() {

@@ -29,6 +29,18 @@ Open the generated DMG and drag Atelier to Applications.
 
 For signed and notarized builds, set `APPLE_SIGNING_IDENTITY` and `APPLE_NOTARY_PROFILE`, with an optional `APPLE_KEYCHAIN_PATH`. Local builds use ad hoc signing by default. See [mygo.config.ts](mygo.config.ts).
 
+## Releases and updates
+
+Pushing a tag builds a signed, notarized universal DMG on GitHub Actions and publishes it as a release, together with the signed files that installed copies update from. Atelier checks for a new release at launch, and from **Atelier › Check for Updates…**.
+
+```sh
+# 1. bump "version" in package.json, commit
+# 2. tag it and push
+git tag v0.2.0 && git push origin v0.2.0
+```
+
+[The workflow](.github/workflows/release.yml) needs these repository secrets: `MACOS_CERTIFICATE` (base64 of the Developer ID `.p12`), `MACOS_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_API_KEY_P8` (base64), `APPLE_API_KEY_ID`, `APPLE_API_ISSUER_ID` and `MYGO_UPDATER_PRIVATE_KEY`. The last one signs updates, and its public key is in [mygo.config.ts](mygo.config.ts). Losing it strands installed copies, so keep a backup.
+
 ## Tests
 
 ```sh
