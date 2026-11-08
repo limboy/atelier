@@ -9,7 +9,7 @@ export default defineConfig({
   // signed with the secret key that matches this public key.
   updates: {
     publicKey: "D1aycXnFSIS9EFYakeFrjqYk+4k0K0W42vTEjJ6eHEI=",
-    github: "limboy/artsandculture",
+    github: "limboy/atelier",
   },
   // Native UI only: no frontend to start or embed. `mygo dev` rebuilds and
   // restarts the app as the Go code, this file or resources/ change.
